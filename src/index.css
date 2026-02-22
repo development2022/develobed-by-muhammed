@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Noto Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    direction: rtl;
+  }
+  
+  body {
+    @apply bg-[#0f0f0f] text-white overflow-x-hidden;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(26, 26, 26, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@keyframes cart-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+  50% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+}
+
+.cart-pulse {
+  animation: cart-pulse 2s infinite;
+}

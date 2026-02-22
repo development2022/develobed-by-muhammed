@@ -1,0 +1,21 @@
+{
+  "short_name": "Sherdil",
+  "name": "Cherezati Sherdil",
+  "icons": [
+    {
+      "src": "https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=192&h=192&fit=crop",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=512&h=512&fit=crop",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f0f0f",
+  "display": "standalone",
+  "theme_color": "#dc2626",
+  "orientation": "portrait"
+}
