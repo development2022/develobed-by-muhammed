@@ -122,8 +122,8 @@ if (categoryCount.count === 0) {
   categories.forEach(cat => insertCategory.run(cat.id, cat.name, cat.name_ar, cat.name_en, cat.name_tr, cat.icon));
 }
 
-// Clear products as requested
-db.prepare("DELETE FROM products").run();
+// Clear products as requested (Disabled to persist data)
+// db.prepare("DELETE FROM products").run();
 
 async function startServer() {
   const app = express();
@@ -171,11 +171,14 @@ async function startServer() {
   app.delete("/api/categories/:id", (req, res) => {
     const { id } = req.params;
     try {
-      // Also delete products in this category to maintain integrity
-      db.prepare("DELETE FROM products WHERE category_id = ?").run(id);
-      db.prepare("DELETE FROM categories WHERE id = ?").run(id);
+      const deleteCategoryTx = db.transaction((catId) => {
+        db.prepare("DELETE FROM products WHERE category_id = ?").run(catId);
+        db.prepare("DELETE FROM categories WHERE id = ?").run(catId);
+      });
+      deleteCategoryTx(id);
       res.json({ success: true });
     } catch (error: any) {
+      console.error("Delete category error:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -213,6 +216,43 @@ async function startServer() {
       
       res.json({ id: info.lastInsertRowid, success: true });
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/products/:id", (req, res) => {
+    const { id } = req.params;
+    const { category_id, name, name_ar, name_en, name_tr, price, old_price, discount, image, weights } = req.body;
+    
+    try {
+      const productId = parseInt(id);
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      db.prepare(`
+        UPDATE products 
+        SET category_id = ?, name = ?, name_ar = ?, name_en = ?, name_tr = ?, price = ?, old_price = ?, discount = ?, image = ?, weights = ?
+        WHERE id = ?
+      `).run(category_id, name, name_ar, name_en, name_tr, price, old_price || null, discount || null, image, JSON.stringify(weights), productId);
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Update product error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/products/:id", (req, res) => {
+    const { id } = req.params;
+    try {
+      const productId = parseInt(id);
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      db.prepare("DELETE FROM products WHERE id = ?").run(productId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Delete product error:", error);
       res.status(500).json({ error: error.message });
     }
   });

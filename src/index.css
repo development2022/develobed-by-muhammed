@@ -39,3 +39,18 @@
 .cart-pulse {
   animation: cart-pulse 2s infinite;
 }
+
+@keyframes color-breathing {
+  0%, 100% { 
+    color: #dc2626;
+    filter: drop-shadow(0 0 2px rgba(220, 38, 38, 0.5));
+  }
+  50% { 
+    color: #ffffff;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));
+  }
+}
+
+.color-breathing {
+  animation: color-breathing 2s ease-in-out infinite;
+}

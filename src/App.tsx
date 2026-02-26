@@ -7,10 +7,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Heart, Bell, ChevronLeft, ChevronRight, 
+  ShoppingBag,
   Plus, Minus, ShoppingCart, Trash2, MapPin, 
-  Edit3, Gift, Clock, Check, Grid, Home, User, Menu, X, Camera, Info, Star, MessageSquare, Languages 
+  Edit3, Gift, Clock, Check, Grid, Home, User, Menu, X, Camera, Info, Star, MessageSquare, Languages
 } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import { GoogleGenAI, Type } from "@google/genai";
 
 // Types
 interface Category {
@@ -80,7 +81,7 @@ const Toast = ({ message, visible }: { message: string; visible: boolean }) => (
   </AnimatePresence>
 );
 
-const PromoSlider = ({ promotions }: { promotions: Promotion[] }) => {
+const PromoSlider = ({ promotions, getName }: { promotions: Promotion[], getName: (obj: any) => string }) => {
   const [current, setCurrent] = useState(0);
 
   useEffect(() => {
@@ -122,6 +123,34 @@ const PromoSlider = ({ promotions }: { promotions: Promotion[] }) => {
   );
 };
 
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+
+async function translateText(text: string): Promise<{ ar: string, en: string, tr: string }> {
+  if (!text) return { ar: '', en: '', tr: '' };
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Translate the following Kurdish text into Arabic, English, and Turkish. Return ONLY a JSON object with keys "ar", "en", and "tr". Text: "${text}"`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            ar: { type: Type.STRING },
+            en: { type: Type.STRING },
+            tr: { type: Type.STRING },
+          },
+          required: ["ar", "en", "tr"],
+        },
+      },
+    });
+    return JSON.parse(response.text || '{}');
+  } catch (error) {
+    console.error("Translation error:", error);
+    return { ar: text, en: text, tr: text }; // Fallback to original text
+  }
+}
+
 export default function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -148,7 +177,18 @@ export default function App() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
   const [language, setLanguage] = useState<'ku' | 'ar' | 'en' | 'tr'>('ku');
-  const receiptRef = React.useRef<HTMLDivElement>(null);
+
+  const getName = (obj: any) => {
+    if (!obj) return '';
+    if (language === 'ar' && obj.name_ar) return obj.name_ar;
+    if (language === 'en' && obj.name_en) return obj.name_en;
+    if (language === 'tr' && obj.name_tr) return obj.name_tr;
+    if (language === 'ar' && obj.title_ar) return obj.title_ar;
+    if (language === 'en' && obj.title_en) return obj.title_en;
+    if (language === 'tr' && obj.title_tr) return obj.title_tr;
+    return obj.name || obj.title || '';
+  };
+
 
   const averageRating = useMemo(() => {
     if (reviews.length === 0) return "0.0";
@@ -167,13 +207,11 @@ export default function App() {
       search: "گەڕان بۆ کاڵاکان...",
       reviews: "هەڵسەنگاندنەکان",
       addReview: "ڕای خۆت بنووسە",
-      receipt: "پسوولەی کڕین",
       total: "کۆی گشتی",
       delivery: "گەیاندن",
       finalTotal: "کۆی کۆتایی",
       free: "بەخۆڕایی",
       currency: "د.ع",
-      saveReceipt: "وێنەی پسوولە",
       rate: "هەڵسەنگاندن",
       back: "پاشگەزبوونەوە",
       send: "ناردن",
@@ -206,7 +244,22 @@ export default function App() {
       searchResult: "ئەنجامی گەڕان",
       noProductsFound: "هیچ کاڵایەک نەدۆزرایەوە بۆ",
       noProductsInCategory: "هیچ کاڵایەک نییە لەم هاوپۆلەدا",
-      itemsCount: "کاڵا"
+      itemsCount: "کاڵا",
+      manageProducts: "بەڕێوەبردنی کاڵاکان",
+      manageCategories: "هاوپۆلەکان",
+      newCategory: "هاوپۆلی نوێ",
+      addProduct: "زیادکردنی کاڵا",
+      promotions: "پرۆمۆشنەکان",
+      deliverySettings: "ڕێکخستنەکانی گەیاندن",
+      settings: "ڕێکخستنەکان",
+      addCategorySuccess: "هاوپۆل بە سەرکەوتوویی زیادکرا!",
+      editProduct: "دەستکاری کاڵا",
+      deleteProductConfirm: "ئایا دڵنیایت لە سڕینەوەی ئەم کاڵایە؟",
+      productDeleteSuccess: "کاڵا بە سەرکەوتوویی سڕایەوە",
+      productUpdateSuccess: "کاڵا بە سەرکەوتوویی نوێکرایەوە!",
+      order: "داواکردن",
+      location: "شوێن",
+      discount: "داشکاندن"
     },
     ar: {
       home: "الرئيسية",
@@ -218,13 +271,11 @@ export default function App() {
       search: "البحث عن المنتجات...",
       reviews: "التقييمات",
       addReview: "اكتب رأيك",
-      receipt: "وصل الشراء",
       total: "المجموع",
       delivery: "التوصيل",
       finalTotal: "المجموع النهائي",
       free: "مجاني",
       currency: "د.ع",
-      saveReceipt: "حفظ الوصل",
       rate: "تقييم",
       back: "رجوع",
       send: "إرسال",
@@ -257,7 +308,22 @@ export default function App() {
       searchResult: "نتائج البحث",
       noProductsFound: "لم يتم العثور على منتجات لـ",
       noProductsInCategory: "لا توجد منتجات في هذه الفئة",
-      itemsCount: "منتجات"
+      itemsCount: "منتجات",
+      manageProducts: "إدارة المنتجات",
+      manageCategories: "الفئات",
+      newCategory: "فئة جديدة",
+      addProduct: "إضافة منتج",
+      promotions: "العروض",
+      deliverySettings: "إعدادات التوصيل",
+      settings: "الإعدادات",
+      addCategorySuccess: "تم إضافة الفئة بنجاح!",
+      editProduct: "تعديل المنتج",
+      deleteProductConfirm: "هل أنت متأكد من حذف هذا المنتج؟",
+      productDeleteSuccess: "تم حذف المنتج بنجاح",
+      productUpdateSuccess: "تم تحديث المنتج بنجاح!",
+      order: "طلب",
+      location: "الموقع",
+      discount: "خصم"
     },
     en: {
       home: "Home",
@@ -269,13 +335,11 @@ export default function App() {
       search: "Search for products...",
       reviews: "Reviews",
       addReview: "Write a review",
-      receipt: "Receipt",
       total: "Total",
       delivery: "Delivery",
       finalTotal: "Final Total",
       free: "Free",
       currency: "IQD",
-      saveReceipt: "Save Receipt",
       rate: "Rate",
       back: "Back",
       send: "Send",
@@ -308,7 +372,22 @@ export default function App() {
       searchResult: "Search Results",
       noProductsFound: "No products found for",
       noProductsInCategory: "No products in this category",
-      itemsCount: "items"
+      itemsCount: "items",
+      manageProducts: "Manage Products",
+      manageCategories: "Categories",
+      newCategory: "New Category",
+      addProduct: "Add Product",
+      promotions: "Promotions",
+      deliverySettings: "Delivery Settings",
+      settings: "Settings",
+      addCategorySuccess: "Category added successfully!",
+      editProduct: "Edit Product",
+      deleteProductConfirm: "Are you sure you want to delete this product?",
+      productDeleteSuccess: "Product deleted successfully",
+      productUpdateSuccess: "Product updated successfully!",
+      order: "Order",
+      location: "Location",
+      discount: "discount"
     },
     tr: {
       home: "Ana Sayfa",
@@ -320,13 +399,11 @@ export default function App() {
       search: "Ürün ara...",
       reviews: "Değerlendirmeler",
       addReview: "Yorum yap",
-      receipt: "Fiş",
       total: "Toplam",
       delivery: "Teslimat",
       finalTotal: "Genel Toplam",
       free: "Ücretsiz",
       currency: "IQD",
-      saveReceipt: "Fişi Kaydet",
       rate: "Puanla",
       back: "Geri",
       send: "Gönder",
@@ -359,7 +436,22 @@ export default function App() {
       searchResult: "Arama Sonuçları",
       noProductsFound: "Şunun için ürün bulunamadı:",
       noProductsInCategory: "Bu kategoride ürün yok",
-      itemsCount: "ürün"
+      itemsCount: "ürün",
+      manageProducts: "Ürünleri Yönet",
+      manageCategories: "Kategoriler",
+      newCategory: "Yeni Kategori",
+      addProduct: "Ürün Ekle",
+      promotions: "Promosyonlar",
+      deliverySettings: "Teslimat Ayarları",
+      settings: "Ayarlar",
+      addCategorySuccess: "Kategori başarıyla eklendi!",
+      editProduct: "Ürünü Düzenle",
+      deleteProductConfirm: "Bu ürünü silmek istediğinizden emin misiniz?",
+      productDeleteSuccess: "Ürün başarıyla silindi",
+      productUpdateSuccess: "Ürün başarıyla güncellendi!",
+      order: "Sipariş",
+      location: "Konum",
+      discount: "indirim"
     }
   };
 
@@ -369,7 +461,7 @@ export default function App() {
 
   // Admin Form State
   const [newProduct, setNewProduct] = useState({
-    category_id: 'nuts',
+    category_id: '',
     name: '',
     price: 0,
     old_price: '',
@@ -377,6 +469,8 @@ export default function App() {
     image: '',
     weights: [{ w: 250, p: 0 }]
   });
+
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   // Auto-calculate discount or price
   useEffect(() => {
@@ -408,8 +502,16 @@ export default function App() {
       .then(res => res.json())
       .then(data => {
         setCategories(data);
-        if (data.length > 0 && !selectedCategory) {
-          setSelectedCategory(data[0].id);
+        if (data.length > 0) {
+          // Removed auto-selection to show category grid as landing page on home
+          setNewProduct(prev => {
+            if (!prev.category_id || !data.find((c: any) => c.id === prev.category_id)) {
+              return { ...prev, category_id: data[0].id };
+            }
+            return prev;
+          });
+        } else {
+          setSelectedCategory('');
         }
       });
   };
@@ -451,16 +553,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isSearching) {
+    if (currentView === 'home' && !isSearching) {
       fetchProducts();
     }
-  }, [selectedCategory, isSearching]);
+  }, [selectedCategory, isSearching, currentView]);
 
   useEffect(() => {
-    if (isSearching) {
+    if (isSearching || (currentView === 'admin' && (adminTab === 'manage_products' || adminTab === 'items'))) {
       fetchProducts(true);
     }
-  }, [isSearching]);
+  }, [isSearching, currentView, adminTab]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -478,7 +580,7 @@ export default function App() {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'product' | 'category' | 'edit_category' | 'logo' | 'edit_promo') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'product' | 'category' | 'edit_category' | 'logo' | 'edit_promo' | 'edit_product') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -494,6 +596,8 @@ export default function App() {
       const data = await response.json();
       if (target === 'product') {
         setNewProduct({ ...newProduct, image: data.url });
+      } else if (target === 'edit_product' && editingProduct) {
+        setEditingProduct({ ...editingProduct, image: data.url });
       } else if (target === 'category') {
         setNewCategory({ ...newCategory, icon: data.url });
       } else if (target === 'edit_category' && editingCategory) {
@@ -520,10 +624,23 @@ export default function App() {
     e.preventDefault();
     if (!editingPromotion) return;
 
+    let translated = { ar: editingPromotion.title_ar || '', en: editingPromotion.title_en || '', tr: editingPromotion.title_tr || '' };
+    try {
+      showToastMsg('خەریکی وەرگێڕانە...');
+      translated = await translateText(editingPromotion.title);
+    } catch (error) {
+      console.error("Translation error:", error);
+    }
+
     const response = await fetch(`/api/promotions/${editingPromotion.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editingPromotion)
+      body: JSON.stringify({
+        ...editingPromotion,
+        title_ar: translated.ar,
+        title_en: translated.en,
+        title_tr: translated.tr
+      })
     });
 
     if (response.ok) {
@@ -542,15 +659,29 @@ export default function App() {
       return;
     }
 
-    const id = newCategory.name.toLowerCase().replace(/\s+/g, '_');
+    let translated = { ar: '', en: '', tr: '' };
+    try {
+      showToastMsg('خەریکی وەرگێڕانە...');
+      translated = await translateText(newCategory.name);
+    } catch (error) {
+      console.error("Translation error:", error);
+    }
+
+    const id = Date.now().toString();
     const response = await fetch('/api/categories', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...newCategory, id })
+      body: JSON.stringify({ 
+        ...newCategory, 
+        id,
+        name_ar: translated.ar,
+        name_en: translated.en,
+        name_tr: translated.tr
+      })
     });
 
     if (response.ok) {
-      showToastMsg('هاوپۆل بە سەرکەوتوویی زیادکرا!');
+      showToastMsg(t('addCategorySuccess'));
       setAdminTab('manage_cats');
       fetchCategories();
       setNewCategory({ id: '', name: '', icon: '' });
@@ -563,10 +694,23 @@ export default function App() {
     e.preventDefault();
     if (!editingCategory) return;
 
+    let translated = { ar: editingCategory.name_ar || '', en: editingCategory.name_en || '', tr: editingCategory.name_tr || '' };
+    try {
+      showToastMsg('خەریکی وەرگێڕانە...');
+      translated = await translateText(editingCategory.name);
+    } catch (error) {
+      console.error("Translation error:", error);
+    }
+
     const response = await fetch(`/api/categories/${editingCategory.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editingCategory)
+      body: JSON.stringify({
+        ...editingCategory,
+        name_ar: translated.ar,
+        name_en: translated.en,
+        name_tr: translated.tr
+      })
     });
 
     if (response.ok) {
@@ -600,15 +744,25 @@ export default function App() {
   const handleDeleteCategory = async (id: string) => {
     if (!window.confirm(t('categoryDeleteConfirm'))) return;
 
-    const response = await fetch(`/api/categories/${id}`, {
-      method: 'DELETE'
-    });
+    console.log("Deleting category:", id);
+    try {
+      const response = await fetch(`/api/categories/${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      });
 
-    if (response.ok) {
-      showToastMsg(t('categoryDeleteSuccess'));
-      fetchCategories();
-    } else {
-      showToastMsg(t('categoryDeleteError'));
+      if (response.ok) {
+        console.log("Category deleted successfully");
+        showToastMsg(t('categoryDeleteSuccess'));
+        fetchCategories();
+        fetchProducts(currentView === 'admin');
+      } else {
+        const errData = await response.json();
+        console.error("Category delete failed:", errData);
+        showToastMsg(t('categoryDeleteError'));
+      }
+    } catch (error) {
+      console.error("Category delete error:", error);
+      showToastMsg(t('errorOccurred'));
     }
   };
 
@@ -619,11 +773,22 @@ export default function App() {
       return;
     }
 
+    let translated = { ar: '', en: '', tr: '' };
+    try {
+      showToastMsg('خەریکی وەرگێڕانە...');
+      translated = await translateText(newProduct.name);
+    } catch (error) {
+      console.error("Translation error:", error);
+    }
+
     const response = await fetch('/api/products', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...newProduct,
+        name_ar: translated.ar,
+        name_en: translated.en,
+        name_tr: translated.tr,
         price: Number(newProduct.price),
         old_price: newProduct.old_price ? Number(newProduct.old_price) : null,
         discount: newProduct.discount ? Number(newProduct.discount) : null,
@@ -632,10 +797,10 @@ export default function App() {
 
     if (response.ok) {
       showToastMsg(t('productAddSuccess'));
-      setCurrentView('home');
-      fetchProducts();
+      setAdminTab('manage_products');
+      fetchProducts(true);
       setNewProduct({
-        category_id: 'nuts',
+        category_id: categories.length > 0 ? categories[0].id : '',
         name: '',
         price: 0,
         old_price: '',
@@ -645,6 +810,62 @@ export default function App() {
       });
     } else {
       showToastMsg(t('productAddError'));
+    }
+  };
+
+  const handleUpdateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+
+    let translated = { ar: editingProduct.name_ar || '', en: editingProduct.name_en || '', tr: editingProduct.name_tr || '' };
+    try {
+      showToastMsg('خەریکی وەرگێڕانە...');
+      translated = await translateText(editingProduct.name);
+    } catch (error) {
+      console.error("Translation error:", error);
+    }
+
+    const response = await fetch(`/api/products/${editingProduct.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...editingProduct,
+        name_ar: translated.ar,
+        name_en: translated.en,
+        name_tr: translated.tr
+      })
+    });
+
+    if (response.ok) {
+      showToastMsg(t('productUpdateSuccess'));
+      setEditingProduct(null);
+      fetchProducts(true);
+    } else {
+      showToastMsg(t('errorOccurred'));
+    }
+  };
+
+  const handleDeleteProduct = async (id: number) => {
+    if (!window.confirm(t('deleteProductConfirm'))) return;
+
+    console.log("Deleting product:", id);
+    try {
+      const response = await fetch(`/api/products/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        console.log("Product deleted successfully");
+        showToastMsg(t('productDeleteSuccess'));
+        fetchProducts(currentView === 'admin' || isSearching);
+      } else {
+        const errData = await response.json();
+        console.error("Product delete failed:", errData);
+        showToastMsg(t('errorOccurred'));
+      }
+    } catch (error) {
+      console.error("Product delete error:", error);
+      showToastMsg(t('errorOccurred'));
     }
   };
 
@@ -668,43 +889,54 @@ export default function App() {
 
   const handleCheckout = () => {
     const whatsappNumber = "9647504394038";
-    let message = `🛒 *${t('newOrder')}*\n\n`;
     
-    cart.forEach((item, index) => {
-      message += `${index + 1}. *${item.name}*\n`;
-      message += `   ⚖️ ${t('weight')}: ${item.weights[item.selectedWeight].w} ${t('gram')}\n`;
-      message += `   🔢 ${t('quantity')}: ${item.quantity}\n`;
-      message += `   💰 ${t('price')}: ${item.finalPrice.toLocaleString()} ${t('dinar')}\n\n`;
-    });
-
-    message += "--------------------------\n";
-    message += `💵 ${t('total')}: ${cartTotal.toLocaleString()} ${t('dinar')}\n`;
-    message += `🚚 ${t('delivery')}: ${deliveryFee === 0 ? t('free') : deliveryFee.toLocaleString() + ' ' + t('dinar')}\n`;
-    message += `✨ *${t('finalTotal')}: ${(cartTotal + deliveryFee).toLocaleString()} ${t('dinar')}*\n`;
-
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
-    
-    window.open(whatsappUrl, '_blank');
-    
-    setLastOrder([...cart]);
-    setShowCart(false);
-    setShowCheckoutSuccess(true);
-    setCart([]);
-  };
-
-  const captureReceipt = async () => {
-    if (receiptRef.current) {
-      const canvas = await html2canvas(receiptRef.current, {
-        backgroundColor: '#1a1a1a',
-        scale: 2
+    const sendOrder = (locationUrl?: string) => {
+      let message = `🛒 *${t('newOrder')}*\n\n`;
+      
+      cart.forEach((item, index) => {
+        message += `${index + 1}. *${item.name}*\n`;
+        message += `   ⚖️ ${t('weight')}: ${item.weights[item.selectedWeight].w} ${t('gram')}\n`;
+        message += `   🔢 ${t('quantity')}: ${item.quantity}\n`;
+        message += `   💰 ${t('price')}: ${item.finalPrice.toLocaleString()} ${t('dinar')}\n\n`;
       });
-      const image = canvas.toDataURL("image/png");
-      const link = document.createElement('a');
-      link.href = image;
-      link.download = `receipt-${Date.now()}.png`;
-      link.click();
-      showToastMsg('وێنەی پسوولە پاشەکەوت کرا');
+
+      message += "--------------------------\n";
+      message += `💵 ${t('total')}: ${cartTotal.toLocaleString()} ${t('dinar')}\n`;
+      message += `🚚 ${t('delivery')}: ${deliveryFee === 0 ? t('free') : deliveryFee.toLocaleString() + ' ' + t('dinar')}\n`;
+      message += `✨ *${t('finalTotal')}: ${(cartTotal + deliveryFee).toLocaleString()} ${t('dinar')}*\n`;
+
+      if (locationUrl) {
+        message += `\n📍 *${t('location')}*:\n${locationUrl}`;
+      }
+
+      const encodedMessage = encodeURIComponent(message);
+      const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
+      
+      window.open(whatsappUrl, '_blank');
+      
+      setLastOrder([...cart]);
+      setShowCart(false);
+      setShowCheckoutSuccess(true);
+      setCart([]);
+    };
+
+    if ("geolocation" in navigator) {
+      showToastMsg("Getting location...");
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const locationUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+          sendOrder(locationUrl);
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+          showToastMsg("Could not get location. Sending without it.");
+          sendOrder();
+        },
+        { timeout: 10000 }
+      );
+    } else {
+      sendOrder();
     }
   };
 
@@ -783,7 +1015,7 @@ export default function App() {
                   {appLogo ? (
                     <img src={appLogo} alt="Logo" className="w-full h-full object-cover" />
                   ) : (
-                    <span className="text-white font-bold text-xs">شێردڵ</span>
+                    <span className="text-white font-bold text-xs">چەرەزاتی شێردڵ</span>
                   )}
                 </div>
               </div>
@@ -843,7 +1075,7 @@ export default function App() {
                   <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center overflow-hidden">
                     {appLogo ? <img src={appLogo} className="w-full h-full object-cover" /> : <span className="text-white font-bold">S</span>}
                   </div>
-                  <span className="font-bold text-lg">شێردڵ</span>
+                  <span className="font-bold text-lg">چەرەزاتی شێردڵ</span>
                 </div>
                 <button onClick={() => setShowSideMenu(false)} className="p-2 hover:bg-white/10 rounded-full">
                   <X size={24} />
@@ -891,17 +1123,18 @@ export default function App() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       {[
-                        { id: 'ku', label: 'Kurdî' },
-                        { id: 'ar', label: 'العربية' },
-                        { id: 'en', label: 'English' },
-                        { id: 'tr', label: 'Türkçe' }
+                        { id: 'ku', label: 'Kurdî', flag: '☀️' },
+                        { id: 'ar', label: 'العربية', flag: '🇮🇶' },
+                        { id: 'en', label: 'English', flag: '🇺🇸' },
+                        { id: 'tr', label: 'Türkçe', flag: '🇹🇷' }
                       ].map((lang) => (
                         <button
                           key={lang.id}
                           onClick={() => setLanguage(lang.id as any)}
-                          className={`py-2 px-3 rounded-xl text-xs font-medium transition-all ${language === lang.id ? 'bg-red-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                          className={`py-2 px-3 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-2 ${language === lang.id ? 'bg-red-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
                         >
-                          {lang.label}
+                          <span>{lang.flag}</span>
+                          <span>{lang.label}</span>
                         </button>
                       ))}
                     </div>
@@ -921,24 +1154,31 @@ export default function App() {
       <main className="pt-14" dir={language === 'en' || language === 'tr' ? 'ltr' : 'rtl'}>
         {currentView === 'home' ? (
           <>
-            {!isSearching && <PromoSlider promotions={promotions} />}
-
-            {/* Categories Tabs */}
-            {!isSearching && (
-              <div className="px-4 mt-4">
-                <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-2">
-                  {categories.map(cat => (
-                    <button
-                      key={cat.id}
-                      onClick={() => setSelectedCategory(cat.id)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-full whitespace-nowrap transition-all ${selectedCategory === cat.id ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
-                    >
-                      <Grid size={18} />
-                      <span className="text-sm font-medium">{getName(cat)}</span>
-                    </button>
-                  ))}
+            {!isSearching && !selectedCategory && (
+              <>
+                <PromoSlider promotions={promotions} getName={getName} />
+                <div className="px-4 mt-6 mb-2">
+                  <h2 className="text-xl font-bold">{t('manageCategories')}</h2>
                 </div>
-              </div>
+                <div className="px-4 mt-2">
+                  <div className="grid grid-cols-4 gap-3">
+                    {categories.map(cat => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setSelectedCategory(cat.id)}
+                        className="flex flex-col items-center gap-2 p-2 rounded-2xl transition-all bg-[#1a1a1a] hover:bg-[#262626]"
+                      >
+                        <div className="w-full aspect-square rounded-xl overflow-hidden bg-[#262626]">
+                          <img src={cat.icon} alt={getName(cat)} className="w-full h-full object-cover" />
+                        </div>
+                        <span className="text-[10px] font-bold text-center line-clamp-1 text-gray-400">
+                          {getName(cat)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
 
             {isSearching && (
@@ -953,75 +1193,69 @@ export default function App() {
               </div>
             )}
 
-            {/* Category Grid (Only for discount or initial) */}
-            {!isSearching && selectedCategory === 'discount' && (
-              <div className="px-4 py-4 grid grid-cols-3 gap-3">
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={`flex flex-col items-center gap-2 p-3 rounded-2xl transition-all ${selectedCategory === cat.id ? 'bg-red-600/20 ring-2 ring-red-600' : 'bg-[#1a1a1a] hover:bg-[#262626]'}`}
-                  >
-                    <div className="w-16 h-16 rounded-xl overflow-hidden">
-                      <img src={cat.icon} alt={getName(cat)} className="w-full h-full object-cover" />
-                    </div>
-                    <span className="text-xs font-medium text-center leading-tight line-clamp-2">{getName(cat)}</span>
-                  </button>
-                ))}
+            {/* Products List */}
+            {(isSearching || selectedCategory) && (
+              <div className="px-4 py-4">
+                <div className="flex items-center gap-3 mb-6">
+                  {selectedCategory && !isSearching && (
+                    <button 
+                      onClick={() => setSelectedCategory('')}
+                      className="p-2 bg-[#1a1a1a] rounded-full text-red-600 hover:bg-[#262626] transition-colors"
+                    >
+                      {language === 'en' || language === 'tr' ? <ChevronLeft size={24} /> : <ChevronRight size={24} />}
+                    </button>
+                  )}
+                  <h2 className="text-xl font-bold">
+                    {isSearching ? t('searchResult') : getName(categories.find(c => c.id === selectedCategory))}
+                  </h2>
+                  <div className="flex-1" />
+                  <span className="text-sm text-gray-400">{filteredProducts.length} {t('itemsCount')}</span>
+                </div>
+                
+                {filteredProducts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+                    <Grid size={48} className="opacity-20 mb-4" />
+                    <p>{t('noProductsInCategory')}</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {filteredProducts.map(product => (
+                      <motion.div 
+                        layout
+                        key={product.id} 
+                        className="bg-[#1a1a1a] rounded-2xl overflow-hidden relative group"
+                        onClick={() => setSelectedProduct(product)}
+                      >
+                        {product.discount && (
+                          <div className="absolute top-2 left-2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-lg z-10 flex items-center gap-1">
+                            <span>{product.discount}%</span>
+                            <span>{t('discount')}</span>
+                          </div>
+                        )}
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); addToCart(product, 0, 1); }}
+                          className="absolute top-2 right-2 w-8 h-8 bg-red-600 rounded-full flex items-center justify-center shadow-lg z-10 hover:scale-110 transition-transform"
+                        >
+                          <Plus size={20} />
+                        </button>
+                        <div className="aspect-square overflow-hidden bg-[#262626]">
+                          <img src={product.image} alt={getName(product)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        </div>
+                        <div className="p-3">
+                          <h3 className="text-sm font-medium mb-2 line-clamp-2 h-10">{getName(product)}</h3>
+                          <div className="flex items-center gap-2">
+                            {product.old_price && (
+                              <span className="text-xs text-gray-500 line-through">{product.old_price.toLocaleString()}</span>
+                            )}
+                            <span className="text-red-600 font-bold text-sm">{product.price.toLocaleString()} دینار</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-
-            {/* Products List */}
-            <div className="px-4 py-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold">
-                  {getName(categories.find(c => c.id === selectedCategory))}
-                </h2>
-                <span className="text-sm text-gray-400">{filteredProducts.length} {t('itemsCount')}</span>
-              </div>
-              
-              {filteredProducts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-                  <Grid size={48} className="opacity-20 mb-4" />
-                  <p>{t('noProductsInCategory')}</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {filteredProducts.map(product => (
-                    <motion.div 
-                      layout
-                      key={product.id} 
-                      className="bg-[#1a1a1a] rounded-2xl overflow-hidden relative group"
-                      onClick={() => setSelectedProduct(product)}
-                    >
-                      {product.discount && (
-                        <div className="absolute top-2 left-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-lg z-10">
-                          %{product.discount}
-                        </div>
-                      )}
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); addToCart(product, 0, 1); }}
-                        className="absolute top-2 right-2 w-8 h-8 bg-red-600 rounded-full flex items-center justify-center shadow-lg z-10 hover:scale-110 transition-transform"
-                      >
-                        <Plus size={20} />
-                      </button>
-                      <div className="aspect-square overflow-hidden bg-[#262626]">
-                        <img src={product.image} alt={getName(product)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                      </div>
-                      <div className="p-3">
-                        <h3 className="text-sm font-medium mb-2 line-clamp-2 h-10">{getName(product)}</h3>
-                        <div className="flex items-center gap-2">
-                          {product.old_price && (
-                            <span className="text-xs text-gray-500 line-through">{product.old_price.toLocaleString()}</span>
-                          )}
-                          <span className="text-red-600 font-bold text-sm">{product.price.toLocaleString()} دینار</span>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </div>
           </>
         ) : currentView === 'login' ? (
           <div className="px-4 py-20 flex flex-col items-center">
@@ -1073,42 +1307,48 @@ export default function App() {
             </div>
 
             {/* Admin Tabs */}
-            <div className="flex gap-2 mb-6 overflow-x-auto hide-scrollbar">
+            <div className="flex gap-2 mb-6 overflow-x-auto hide-scrollbar pb-2">
               <button 
                 onClick={() => setAdminTab('items')}
                 className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'items' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
               >
-                زیادکردنی کاڵا
+                {t('addProduct')}
+              </button>
+              <button 
+                onClick={() => { setAdminTab('manage_products'); fetchProducts(true); }}
+                className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'manage_products' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
+              >
+                {t('manageProducts')}
               </button>
               <button 
                 onClick={() => setAdminTab('manage_cats')}
                 className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'manage_cats' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
               >
-                هاوپۆلەکان
+                {t('manageCategories')}
               </button>
               <button 
                 onClick={() => setAdminTab('promotions')}
                 className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'promotions' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
               >
-                پرۆمۆشن (Promotion)
+                {t('promotions')}
               </button>
               <button 
                 onClick={() => setAdminTab('delivery')}
                 className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'delivery' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
               >
-                گەیاندن
+                {t('deliverySettings')}
               </button>
               <button 
                 onClick={() => setAdminTab('new_cat')}
                 className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'new_cat' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
               >
-                هاوپۆلی نوێ
+                {t('newCategory')}
               </button>
               <button 
                 onClick={() => setAdminTab('settings')}
                 className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'settings' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
               >
-                ڕێکخستنەکان
+                {t('settings')}
               </button>
             </div>
 
@@ -1146,7 +1386,19 @@ export default function App() {
                       type="number"
                       required
                       value={newProduct.price}
-                      onChange={(e) => setNewProduct({...newProduct, price: Number(e.target.value)})}
+                      onChange={(e) => {
+                        const basePrice = Number(e.target.value);
+                        setNewProduct({
+                          ...newProduct, 
+                          price: basePrice,
+                          weights: basePrice > 0 ? [
+                            { w: 250, p: basePrice * 0.25 },
+                            { w: 500, p: basePrice * 0.5 },
+                            { w: 750, p: basePrice * 0.75 },
+                            { w: 1000, p: basePrice }
+                          ] : newProduct.weights
+                        });
+                      }}
                       className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                     />
                   </div>
@@ -1261,6 +1513,43 @@ export default function App() {
               </form>
             )}
 
+            {adminTab === 'manage_products' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold">هەموو کاڵاکان ({products.length})</h3>
+                </div>
+                {products.map(product => (
+                  <div key={product.id} className="bg-[#1a1a1a] p-4 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <img src={product.image} className="w-12 h-12 rounded-xl object-cover" />
+                      <div>
+                        <p className="font-bold text-sm line-clamp-1">{product.name}</p>
+                        <p className="text-xs text-gray-500">{product.price.toLocaleString()} دینار</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        type="button"
+                        onClick={() => setEditingProduct(product)}
+                        className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-full transition-colors"
+                        title="Edit"
+                      >
+                        <Edit3 size={20} />
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => handleDeleteProduct(product.id)}
+                        className="p-2 text-red-600 hover:bg-red-600/10 rounded-full transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {adminTab === 'manage_cats' && (
               <div className="space-y-4">
                 {categories.map(cat => (
@@ -1271,14 +1560,18 @@ export default function App() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button 
+                        type="button"
                         onClick={() => setEditingCategory(cat)}
-                        className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-full"
+                        className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-full transition-colors"
+                        title="Edit"
                       >
                         <Edit3 size={20} />
                       </button>
                       <button 
+                        type="button"
                         onClick={() => handleDeleteCategory(cat.id)}
-                        className="p-2 text-red-600 hover:bg-red-600/10 rounded-full"
+                        className="p-2 text-red-600 hover:bg-red-600/10 rounded-full transition-colors"
+                        title="Delete"
                       >
                         <Trash2 size={20} />
                       </button>
@@ -1427,6 +1720,176 @@ export default function App() {
         )}
       </main>
 
+      {/* Edit Product Modal */}
+      <AnimatePresence>
+        {editingProduct && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <motion.div 
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              className="bg-[#1a1a1a] w-full max-w-md p-6 rounded-3xl space-y-4 my-8"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold">{t('editProduct')}</h3>
+                <button onClick={() => setEditingProduct(null)} className="p-2 hover:bg-white/10 rounded-full">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">هاوپۆل</label>
+                  <select 
+                    value={editingProduct.category_id}
+                    onChange={(e) => setEditingProduct({...editingProduct, category_id: e.target.value})}
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 outline-none"
+                  >
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">ناوی کاڵا</label>
+                  <input 
+                    type="text"
+                    value={editingProduct.name}
+                    onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})}
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">نرخ</label>
+                    <input 
+                      type="number"
+                      value={editingProduct.price}
+                      onChange={(e) => {
+                        const basePrice = Number(e.target.value);
+                        setEditingProduct({
+                          ...editingProduct, 
+                          price: basePrice,
+                          weights: basePrice > 0 ? [
+                            { w: 250, p: basePrice * 0.25 },
+                            { w: 500, p: basePrice * 0.5 },
+                            { w: 750, p: basePrice * 0.75 },
+                            { w: 1000, p: basePrice }
+                          ] : editingProduct.weights
+                        });
+                      }}
+                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">داشکاندن (%)</label>
+                    <input 
+                      type="number"
+                      value={editingProduct.discount || ''}
+                      onChange={(e) => setEditingProduct({...editingProduct, discount: Number(e.target.value)})}
+                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">گۆڕینی وێنە</label>
+                  <input 
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleFileUpload(e, 'edit_product')}
+                    className="hidden"
+                    id="edit-file-upload-product"
+                  />
+                  <label 
+                    htmlFor="edit-file-upload-product"
+                    className="w-full bg-[#262626] border-2 border-dashed border-white/10 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer"
+                  >
+                    <img src={editingProduct.image} className="h-32 w-32 object-cover rounded-xl" />
+                  </label>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-400">کێشەکان و نرخەکان</label>
+                  {editingProduct.weights.map((w, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input 
+                        type="number"
+                        placeholder="گرام"
+                        value={w.w}
+                        onChange={(e) => {
+                          const weights = [...editingProduct.weights];
+                          weights[idx].w = Number(e.target.value);
+                          setEditingProduct({...editingProduct, weights});
+                        }}
+                        className="flex-1 bg-[#262626] border border-white/10 rounded-xl p-3 outline-none"
+                      />
+                      <input 
+                        type="number"
+                        placeholder="نرخ"
+                        value={w.p}
+                        onChange={(e) => {
+                          const weights = [...editingProduct.weights];
+                          weights[idx].p = Number(e.target.value);
+                          setEditingProduct({...editingProduct, weights});
+                        }}
+                        className="flex-1 bg-[#262626] border border-white/10 rounded-xl p-3 outline-none"
+                      />
+                      {idx > 0 && (
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const weights = editingProduct.weights.filter((_, i) => i !== idx);
+                            setEditingProduct({...editingProduct, weights});
+                          }}
+                          className="p-3 text-red-600"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button 
+                    type="button"
+                    onClick={() => setEditingProduct({...editingProduct, weights: [...editingProduct.weights, { w: 0, p: 0 }]})}
+                    className="text-sm text-red-600 font-bold flex items-center gap-1"
+                  >
+                    <Plus size={16} /> زیادکردنی کێشی تر
+                  </button>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button 
+                    onClick={handleUpdateProduct}
+                    className="flex-1 bg-red-600 py-4 rounded-2xl font-bold"
+                  >
+                    پاشەکەوتکردن
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      if (editingProduct) {
+                        handleDeleteProduct(editingProduct.id);
+                        setEditingProduct(null);
+                      }
+                    }}
+                    className="bg-red-600/20 text-red-600 p-4 rounded-2xl font-bold border border-red-600/20"
+                  >
+                    <Trash2 size={24} />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Edit Promotion Modal */}
       <AnimatePresence>
         {editingPromotion && (
@@ -1535,6 +1998,7 @@ export default function App() {
                 </button>
                 <div className="flex gap-2">
                   <button 
+                    type="button"
                     onClick={() => {
                       if (editingCategory) {
                         handleDeleteCategory(editingCategory.id);
@@ -1546,6 +2010,7 @@ export default function App() {
                     سڕینەوە
                   </button>
                   <button 
+                    type="button"
                     onClick={() => setEditingCategory(null)}
                     className="flex-1 bg-white/10 py-3 rounded-xl font-bold"
                   >
@@ -1566,6 +2031,13 @@ export default function App() {
         >
           <Home size={24} />
           <span className="text-xs">{t('home')}</span>
+        </button>
+        <button 
+          onClick={() => setShowCart(true)}
+          className={`flex flex-col items-center gap-1 p-2 transition-colors ${cart.length > 0 ? 'color-breathing' : 'text-gray-500'}`}
+        >
+          <ShoppingBag size={24} />
+          <span className="text-xs">{t('order')}</span>
         </button>
         <button 
           onClick={() => setShowCart(true)}
@@ -1741,57 +2213,7 @@ export default function App() {
                 </p>
               </div>
 
-              {/* Receipt for Capture */}
-              <div className="relative">
-                <div 
-                  ref={receiptRef}
-                  className="bg-[#1a1a1a] border border-white/10 rounded-3xl p-6 shadow-2xl"
-                >
-                  <div className="text-center border-b border-white/5 pb-4 mb-4">
-                    <div className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center mx-auto mb-2 overflow-hidden">
-                      {appLogo ? <img src={appLogo} className="w-full h-full object-cover" /> : <span className="text-white font-bold">S</span>}
-                    </div>
-                    <h3 className="font-bold text-lg">شێردڵ</h3>
-                    <p className="text-[10px] text-gray-500">{t('receipt')}</p>
-                  </div>
-
-                  <div className="space-y-3 mb-6">
-                    {lastOrder.map((item, idx) => (
-                      <div key={idx} className="flex justify-between text-sm">
-                        <div className="flex flex-col">
-                          <span className="font-medium">{item.name}</span>
-                          <span className="text-[10px] text-gray-500">{item.weights[item.selectedWeight].w} گرام × {item.quantity}</span>
-                        </div>
-                        <span className="font-bold">{item.finalPrice.toLocaleString()} {t('currency')}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="border-t border-dashed border-white/10 pt-4 space-y-2">
-                    <div className="flex justify-between text-xs text-gray-400">
-                      <span>{t('total')}</span>
-                      <span>{lastOrder.reduce((s, i) => s + i.finalPrice, 0).toLocaleString()} {t('currency')}</span>
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-400">
-                      <span>{t('delivery')}</span>
-                      <span>{lastOrder.reduce((s, i) => s + i.finalPrice, 0) > freeThreshold ? t('free') : deliveryFeeVal.toLocaleString() + ' ' + t('currency')}</span>
-                    </div>
-                    <div className="flex justify-between text-base font-bold text-red-600 pt-2">
-                      <span>{t('finalTotal')}</span>
-                      <span>{(lastOrder.reduce((s, i) => s + i.finalPrice, 0) + (lastOrder.reduce((s, i) => s + i.finalPrice, 0) > freeThreshold ? 0 : deliveryFeeVal)).toLocaleString()} {t('currency')}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <div className="grid grid-cols-2 gap-3">
-                <button 
-                  onClick={captureReceipt}
-                  className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-2xl transition-colors border border-white/10"
-                >
-                  <Camera size={20} />
-                  {t('saveReceipt')}
-                </button>
                 <button 
                   onClick={() => setShowReviewForm(true)}
                   className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-red-600/20"
@@ -1801,7 +2223,7 @@ export default function App() {
                 </button>
                 <button 
                   onClick={() => setShowCheckoutSuccess(false)}
-                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors col-span-2"
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors"
                 >
                   {t('home')}
                 </button>
