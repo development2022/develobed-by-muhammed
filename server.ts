@@ -8,6 +8,7 @@ import fs from "fs";
 import twilio from "twilio";
 import dotenv from "dotenv";
 import helmet from "helmet";
+import compression from "compression";
 import db from "./db.js";
 
 dotenv.config();
@@ -79,11 +80,21 @@ const PORT = 3000;
 // Cloudflare & Proxy readiness
 app.set('trust proxy', true);
 
+// Compression
+app.use(compression());
+
 // Security headers
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable CSP for now as it might block Vite's HMR or external assets
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
+
+// Real IP logging middleware (optional but useful for Cloudflare)
+app.use((req, res, next) => {
+  const ip = req.headers['cf-connecting-ip'] || req.ip;
+  // console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - IP: ${ip}`);
+  next();
+});
 
 // Multer config
 const storage = multer.memoryStorage();
@@ -144,7 +155,8 @@ async function startServer() {
 
   isSupabaseHealthy = await checkSupabaseHealth();
   
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
   app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
   // API Routes
