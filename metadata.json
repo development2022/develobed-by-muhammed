@@ -1,5 +1,5 @@
 {
-  "name": "Cherezati Sherdil",
-  "description": "A premium Kurdish snacks and nuts delivery application with RTL support and modern UI.",
-  "requestFramePermissions": ["geolocation"]
+  "name": "Survey Poll",
+  "description": "A modern SaaS survey platform with glassmorphism UI, user dashboards, and a hidden admin panel.",
+  "requestFramePermissions": []
 }

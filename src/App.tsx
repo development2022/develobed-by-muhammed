@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Heart, Bell, ChevronLeft, ChevronRight, 
@@ -12,116 +12,45 @@ import {
   Edit3, Gift, Clock, Check, Grid, Home, User, Menu, X, Camera, Info, Star, MessageSquare, Languages
 } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
+import { auth } from './firebase';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged,
+  updateProfile,
+  sendEmailVerification,
+  GoogleAuthProvider,
+  signInWithPopup
+} from 'firebase/auth';
 
-// Types
-interface Category {
-  id: string;
-  name: string;
-  name_ar?: string;
-  name_en?: string;
-  name_tr?: string;
-  icon: string;
-}
-
-interface Promotion {
-  id: number;
-  title: string;
-  title_ar?: string;
-  title_en?: string;
-  title_tr?: string;
-  image: string;
-}
-
-interface WeightOption {
-  w: number;
-  p: number;
-}
-
-interface Product {
-  id: number;
-  category_id: string;
-  name: string;
-  name_ar?: string;
-  name_en?: string;
-  name_tr?: string;
-  price: number;
-  old_price?: number;
-  discount?: number;
-  image: string;
-  weights: WeightOption[];
-}
-
-interface CartItem extends Product {
-  cartId: number;
-  selectedWeight: number;
-  quantity: number;
-  finalPrice: number;
-}
-
-interface Review {
-  id: number;
-  rating: number;
-  comment: string;
-  date: string;
-}
-
-// Components
-const Toast = ({ message, visible }: { message: string; visible: boolean }) => (
-  <AnimatePresence>
-    {visible && (
-      <motion.div 
-        initial={{ y: 100, opacity: 0, x: '-50%' }}
-        animate={{ y: 0, opacity: 1, x: '-50%' }}
-        exit={{ y: 100, opacity: 0, x: '-50%' }}
-        className="fixed bottom-24 left-1/2 z-[100] bg-red-600 text-white px-6 py-3 rounded-full font-bold shadow-lg"
-      >
-        {message}
-      </motion.div>
-    )}
-  </AnimatePresence>
-);
-
-const PromoSlider = ({ promotions, getName }: { promotions: Promotion[], getName: (obj: any) => string }) => {
-  const [current, setCurrent] = useState(0);
-
-  useEffect(() => {
-    if (promotions.length === 0) return;
-    const timer = setInterval(() => {
-      setCurrent(prev => (prev + 1) % promotions.length);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, [promotions.length]);
-
-  if (promotions.length === 0) return null;
-
-  return (
-    <div className="relative mx-4 mt-2 rounded-2xl overflow-hidden h-48 bg-[#1a1a1a]">
-      <div 
-        className="flex transition-transform duration-500 h-full"
-        style={{ transform: `translateX(${current * 100}%)` }}
-      >
-        {promotions.map((slide) => (
-          <div key={slide.id} className="min-w-full h-full relative">
-            <img src={slide.image} alt={slide.title} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-            <div className="absolute bottom-4 right-4 text-white">
-              <h3 className="text-xl font-bold">{getName(slide)}</h3>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-        {promotions.map((_, idx) => (
-          <button
-            key={idx}
-            onClick={() => setCurrent(idx)}
-            className={`w-2 h-2 rounded-full transition-all ${current === idx ? 'bg-red-600 w-4' : 'bg-white/50'}`}
-          />
-        ))}
-      </div>
-    </div>
-  );
-};
+import { Category, Promotion, Product, CartItem, User as UserType, Review } from './types';
+import { translations, Language } from './translations';
+import { Toast } from './components/Toast';
+import { PromoSlider } from './components/PromoSlider';
+import { Header } from './components/Header';
+import { SideMenu } from './components/SideMenu';
+import { Cart } from './components/Cart';
+import { ProductCard } from './components/ProductCard';
+import { CategorySidebar } from './components/CategorySidebar';
+import { ProductDetailModal } from './components/ProductDetailModal';
+import { ReviewsModal } from './components/ReviewsModal';
+import { ReviewFormModal } from './components/ReviewFormModal';
+import { BottomNav } from './components/BottomNav';
+import { MobileCategoriesGrid } from './components/MobileCategoriesGrid';
+import { SpecialOffers } from './components/SpecialOffers';
+import { LiveSupport } from './components/LiveSupport';
+import { FeaturedCategories } from './components/FeaturedCategories';
+import { Newsletter } from './components/Newsletter';
+import { BackToTop } from './components/BackToTop';
+import { Footer } from './components/Footer';
+import { WelcomeLoader } from './components/WelcomeLoader';
+import { ScrollProgress } from './components/ScrollProgress';
+import { VideoAI } from './components/VideoAI';
+import { TopBanner } from './components/TopBanner';
+import { Login } from './components/Auth/Login';
+import { Register } from './components/Auth/Register';
+import { Verification } from './components/Auth/Verification';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
@@ -163,22 +92,96 @@ export default function App() {
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState({ show: false, message: '' });
-  const [currentView, setCurrentView] = useState<'home' | 'admin' | 'login'>('home');
-  const [adminTab, setAdminTab] = useState<'items' | 'manage_cats' | 'new_cat' | 'settings' | 'promotions' | 'delivery'>('items');
+  const [currentView, setCurrentView] = useState<'home' | 'admin' | 'login' | 'profile' | 'register' | 'admin_login' | 'video_ai'>('home');
+  const [adminTab, setAdminTab] = useState<'items' | 'manage_cats' | 'new_cat' | 'settings' | 'promotions' | 'delivery' | 'orders'>('items');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserType | null>(null);
+  const [registerData, setRegisterData] = useState({ username: '', password: '', full_name: '', phone: '', address: '' });
+  const [regStep, setRegStep] = useState<'details'>('details');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [debugCode, setDebugCode] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
   const [loginData, setLoginData] = useState({ username: '', password: '' });
+  const [verificationEmail, setVerificationEmail] = useState('');
   const [appLogo, setAppLogo] = useState('');
   const [deliveryFeeVal, setDeliveryFeeVal] = useState(5000);
   const [freeThreshold, setFreeThreshold] = useState(58000);
   const [showSideMenu, setShowSideMenu] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string, discount: number } | null>(null);
+  const [userOrdersCount, setUserOrdersCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
   const [showReviews, setShowReviews] = useState(false);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
-  const [language, setLanguage] = useState<'ku' | 'ar' | 'en' | 'tr'>('ku');
+  const [language, setLanguage] = useState<Language>('ku');
 
-  const getName = (obj: any) => {
+  useEffect(() => {
+    // Check localStorage for existing session
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        setIsLoggedIn(true);
+        setCurrentUser(user);
+      } catch (e) {
+        localStorage.removeItem('currentUser');
+      }
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        if (!user.emailVerified) {
+          setVerificationEmail(user.email || '');
+          await signOut(auth);
+          setCurrentView('verification');
+          return;
+        }
+        const firebaseUser: UserType = {
+          id: 0,
+          username: user.email || '',
+          full_name: user.displayName || user.email?.split('@')[0] || '',
+          phone: '',
+          address: '',
+          role: 'user',
+          is_admin: 0
+        };
+        setIsLoggedIn(true);
+        setCurrentUser(firebaseUser);
+        localStorage.setItem('currentUser', JSON.stringify(firebaseUser));
+      } else {
+        // Only clear if we were logged in via Firebase
+        // We can check if the current user is a firebase user (id: 0)
+        setCurrentUser(prev => {
+          if (prev && prev.id === 0) {
+            setIsLoggedIn(false);
+            localStorage.removeItem('currentUser');
+            return null;
+          }
+          return prev;
+        });
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (currentView === 'admin' && (!isLoggedIn || !currentUser?.is_admin)) {
+      setCurrentView('home');
+    }
+  }, [currentView, isLoggedIn, currentUser]);
+
+  const getName = useCallback((obj: any) => {
     if (!obj) return '';
     if (language === 'ar' && obj.name_ar) return obj.name_ar;
     if (language === 'en' && obj.name_en) return obj.name_en;
@@ -187,7 +190,7 @@ export default function App() {
     if (language === 'en' && obj.title_en) return obj.title_en;
     if (language === 'tr' && obj.title_tr) return obj.title_tr;
     return obj.name || obj.title || '';
-  };
+  }, [language]);
 
 
   const averageRating = useMemo(() => {
@@ -196,268 +199,9 @@ export default function App() {
     return (sum / reviews.length).toFixed(1);
   }, [reviews]);
 
-  const translations = {
-    ku: {
-      home: "سەرەکی",
-      cart: "سەبەتەی کڕین",
-      about: "About",
-      admin: "بەڕێوەبردن (Admin)",
-      adminLogin: "چوونەژوورەوەی ئەدمین",
-      language: "زمان",
-      search: "گەڕان بۆ کاڵاکان...",
-      reviews: "هەڵسەنگاندنەکان",
-      addReview: "ڕای خۆت بنووسە",
-      total: "کۆی گشتی",
-      delivery: "گەیاندن",
-      finalTotal: "کۆی کۆتایی",
-      free: "بەخۆڕایی",
-      currency: "د.ع",
-      rate: "هەڵسەنگاندن",
-      back: "پاشگەزبوونەوە",
-      send: "ناردن",
-      noReviews: "هیچ هەڵسەنگاندنێک نییە",
-      version: "وەشانی",
-      emptyCart: "سەبەتە بەتاڵە",
-      clear: "بەتاڵکردن",
-      gram: "گرام",
-      dinar: "دینار",
-      checkout: "تەواوکردنی کڕین",
-      welcomeAdmin: "بەخێربێیت ئەدمین",
-      loginError: "ناوی بەکارهێنەر یان وشەی نهێنی هەڵەیە",
-      uploadSuccess: "وێنە بە سەرکەوتوویی بارکرا",
-      uploadError: "هەڵە لە بارکردنی وێنە",
-      promoUpdateSuccess: "پرۆمۆشن بە سەرکەوتوویی نوێکرایەوە!",
-      errorOccurred: "هەڵەیەک ڕوویدا",
-      selectImage: "تکایە وێنەیەک هەڵبژێرە",
-      categoryUpdateSuccess: "هاوپۆل بە سەرکەوتوویی نوێکرایەوە!",
-      deliverySettingsSaved: "ڕێکخستنەکانی گەیاندن پاشەکەوت کرا",
-      categoryDeleteConfirm: "ئایا دڵنیایت لە سڕینەوەی ئەم هاوپۆلە؟ هەموو کاڵاکانی ناویشی دەسڕێنەوە.",
-      categoryDeleteSuccess: "هاوپۆل بە سەرکەوتوویی سڕایەوە",
-      categoryDeleteError: "هەڵەیەک ڕوویدا لە کاتی سڕینەوە",
-      productAddSuccess: "کاڵا بە سەرکەوتوویی زیادکرا!",
-      productAddError: "هەڵەیەک ڕوویدا لە کاتی زیادکردن",
-      addedToCart: "زیادکرا بۆ سەبەتە!",
-      newOrder: "داواکاری نوێ",
-      weight: "کێش",
-      quantity: "ژمارە",
-      price: "نرخ",
-      searchResult: "ئەنجامی گەڕان",
-      noProductsFound: "هیچ کاڵایەک نەدۆزرایەوە بۆ",
-      noProductsInCategory: "هیچ کاڵایەک نییە لەم هاوپۆلەدا",
-      itemsCount: "کاڵا",
-      manageProducts: "بەڕێوەبردنی کاڵاکان",
-      manageCategories: "هاوپۆلەکان",
-      newCategory: "هاوپۆلی نوێ",
-      addProduct: "زیادکردنی کاڵا",
-      promotions: "پرۆمۆشنەکان",
-      deliverySettings: "ڕێکخستنەکانی گەیاندن",
-      settings: "ڕێکخستنەکان",
-      addCategorySuccess: "هاوپۆل بە سەرکەوتوویی زیادکرا!",
-      editProduct: "دەستکاری کاڵا",
-      deleteProductConfirm: "ئایا دڵنیایت لە سڕینەوەی ئەم کاڵایە؟",
-      productDeleteSuccess: "کاڵا بە سەرکەوتوویی سڕایەوە",
-      productUpdateSuccess: "کاڵا بە سەرکەوتوویی نوێکرایەوە!",
-      order: "داواکردن",
-      location: "شوێن",
-      discount: "داشکاندن"
-    },
-    ar: {
-      home: "الرئيسية",
-      cart: "سلة التسوق",
-      about: "حول",
-      admin: "الإدارة (Admin)",
-      adminLogin: "تسجيل دخول الأدمن",
-      language: "اللغة",
-      search: "البحث عن المنتجات...",
-      reviews: "التقييمات",
-      addReview: "اكتب رأيك",
-      total: "المجموع",
-      delivery: "التوصيل",
-      finalTotal: "المجموع النهائي",
-      free: "مجاني",
-      currency: "د.ع",
-      rate: "تقييم",
-      back: "رجوع",
-      send: "إرسال",
-      noReviews: "لا توجد تقييمات",
-      version: "الإصدار",
-      emptyCart: "السلة فارغة",
-      clear: "مسح",
-      gram: "جرام",
-      dinar: "دينار",
-      checkout: "إتمام الشراء",
-      welcomeAdmin: "أهلاً بك أيها المسؤول",
-      loginError: "اسم المستخدم أو كلمة المرور غير صحيحة",
-      uploadSuccess: "تم رفع الصورة بنجاح",
-      uploadError: "خطأ في رفع الصورة",
-      promoUpdateSuccess: "تم تحديث العرض بنجاح!",
-      errorOccurred: "حدث خطأ ما",
-      selectImage: "يرجى اختيار صورة",
-      categoryUpdateSuccess: "تم تحديث الفئة بنجاح!",
-      deliverySettingsSaved: "تم حفظ إعدادات التوصيل",
-      categoryDeleteConfirm: "هل أنت متأكد من حذف هذه الفئة؟ سيتم حذف جميع المنتجات الموجودة فيها أيضاً.",
-      categoryDeleteSuccess: "تم حذف الفئة بنجاح",
-      categoryDeleteError: "حدث خطأ أثناء الحذف",
-      productAddSuccess: "تم إضافة المنتج بنجاح!",
-      productAddError: "حدث خطأ أثناء الإضافة",
-      addedToCart: "تمت الإضافة إلى السلة!",
-      newOrder: "طلب جديد",
-      weight: "الوزن",
-      quantity: "العدد",
-      price: "السعر",
-      searchResult: "نتائج البحث",
-      noProductsFound: "لم يتم العثور على منتجات لـ",
-      noProductsInCategory: "لا توجد منتجات في هذه الفئة",
-      itemsCount: "منتجات",
-      manageProducts: "إدارة المنتجات",
-      manageCategories: "الفئات",
-      newCategory: "فئة جديدة",
-      addProduct: "إضافة منتج",
-      promotions: "العروض",
-      deliverySettings: "إعدادات التوصيل",
-      settings: "الإعدادات",
-      addCategorySuccess: "تم إضافة الفئة بنجاح!",
-      editProduct: "تعديل المنتج",
-      deleteProductConfirm: "هل أنت متأكد من حذف هذا المنتج؟",
-      productDeleteSuccess: "تم حذف المنتج بنجاح",
-      productUpdateSuccess: "تم تحديث المنتج بنجاح!",
-      order: "طلب",
-      location: "الموقع",
-      discount: "خصم"
-    },
-    en: {
-      home: "Home",
-      cart: "Shopping Cart",
-      about: "About",
-      admin: "Management (Admin)",
-      adminLogin: "Admin Login",
-      language: "Language",
-      search: "Search for products...",
-      reviews: "Reviews",
-      addReview: "Write a review",
-      total: "Total",
-      delivery: "Delivery",
-      finalTotal: "Final Total",
-      free: "Free",
-      currency: "IQD",
-      rate: "Rate",
-      back: "Back",
-      send: "Send",
-      noReviews: "No reviews yet",
-      version: "Version",
-      emptyCart: "Cart is empty",
-      clear: "Clear",
-      gram: "g",
-      dinar: "IQD",
-      checkout: "Checkout",
-      welcomeAdmin: "Welcome Admin",
-      loginError: "Invalid username or password",
-      uploadSuccess: "Image uploaded successfully",
-      uploadError: "Error uploading image",
-      promoUpdateSuccess: "Promotion updated successfully!",
-      errorOccurred: "An error occurred",
-      selectImage: "Please select an image",
-      categoryUpdateSuccess: "Category updated successfully!",
-      deliverySettingsSaved: "Delivery settings saved",
-      categoryDeleteConfirm: "Are you sure you want to delete this category? All products inside will also be deleted.",
-      categoryDeleteSuccess: "Category deleted successfully",
-      categoryDeleteError: "Error occurred during deletion",
-      productAddSuccess: "Product added successfully!",
-      productAddError: "Error occurred during addition",
-      addedToCart: "Added to cart!",
-      newOrder: "New Order",
-      weight: "Weight",
-      quantity: "Quantity",
-      price: "Price",
-      searchResult: "Search Results",
-      noProductsFound: "No products found for",
-      noProductsInCategory: "No products in this category",
-      itemsCount: "items",
-      manageProducts: "Manage Products",
-      manageCategories: "Categories",
-      newCategory: "New Category",
-      addProduct: "Add Product",
-      promotions: "Promotions",
-      deliverySettings: "Delivery Settings",
-      settings: "Settings",
-      addCategorySuccess: "Category added successfully!",
-      editProduct: "Edit Product",
-      deleteProductConfirm: "Are you sure you want to delete this product?",
-      productDeleteSuccess: "Product deleted successfully",
-      productUpdateSuccess: "Product updated successfully!",
-      order: "Order",
-      location: "Location",
-      discount: "discount"
-    },
-    tr: {
-      home: "Ana Sayfa",
-      cart: "Alışveriş Sepeti",
-      about: "Hakkında",
-      admin: "Yönetim (Admin)",
-      adminLogin: "Admin Girişi",
-      language: "Dil",
-      search: "Ürün ara...",
-      reviews: "Değerlendirmeler",
-      addReview: "Yorum yap",
-      total: "Toplam",
-      delivery: "Teslimat",
-      finalTotal: "Genel Toplam",
-      free: "Ücretsiz",
-      currency: "IQD",
-      rate: "Puanla",
-      back: "Geri",
-      send: "Gönder",
-      noReviews: "Henüz değerlendirme yok",
-      version: "Sürüm",
-      emptyCart: "Sepet boş",
-      clear: "Temizle",
-      gram: "g",
-      dinar: "IQD",
-      checkout: "Ödeme",
-      welcomeAdmin: "Hoş Geldiniz Yönetici",
-      loginError: "Geçersiz kullanıcı adı veya şifre",
-      uploadSuccess: "Resim başarıyla yüklendi",
-      uploadError: "Resim yükleme hatası",
-      promoUpdateSuccess: "Promosyon başarıyla güncellendi!",
-      errorOccurred: "Bir hata oluştu",
-      selectImage: "Lütfen bir resim seçin",
-      categoryUpdateSuccess: "Kategori başarıyla güncellendi!",
-      deliverySettingsSaved: "Teslimat ayarları kaydedildi",
-      categoryDeleteConfirm: "Bu kategoriyi silmek istediğinizden emin misiniz? İçindeki tüm ürünler de silinecektir.",
-      categoryDeleteSuccess: "Kategori başarıyla silindi",
-      categoryDeleteError: "Silme sırasında hata oluştu",
-      productAddSuccess: "Ürün başarıyla eklendi!",
-      productAddError: "Ekleme sırasında hata oluştu",
-      addedToCart: "Sepete eklendi!",
-      newOrder: "Yeni Sipariş",
-      weight: "Ağırlık",
-      quantity: "Adet",
-      price: "Fiyat",
-      searchResult: "Arama Sonuçları",
-      noProductsFound: "Şunun için ürün bulunamadı:",
-      noProductsInCategory: "Bu kategoride ürün yok",
-      itemsCount: "ürün",
-      manageProducts: "Ürünleri Yönet",
-      manageCategories: "Kategoriler",
-      newCategory: "Yeni Kategori",
-      addProduct: "Ürün Ekle",
-      promotions: "Promosyonlar",
-      deliverySettings: "Teslimat Ayarları",
-      settings: "Ayarlar",
-      addCategorySuccess: "Kategori başarıyla eklendi!",
-      editProduct: "Ürünü Düzenle",
-      deleteProductConfirm: "Bu ürünü silmek istediğinizden emin misiniz?",
-      productDeleteSuccess: "Ürün başarıyla silindi",
-      productUpdateSuccess: "Ürün başarıyla güncellendi!",
-      order: "Sipariş",
-      location: "Konum",
-      discount: "indirim"
-    }
-  };
-
-  const t = (key: keyof typeof translations['ku']) => {
-    return translations[language][key] || translations['ku'][key];
-  };
+  const t = useCallback((key: string) => {
+    return (translations[language] as any)[key] || key;
+  }, [language]);
 
   // Admin Form State
   const [newProduct, setNewProduct] = useState({
@@ -467,7 +211,8 @@ export default function App() {
     old_price: '',
     discount: '',
     image: '',
-    weights: [{ w: 250, p: 0 }]
+    weights: [{ w: 250, p: 0 }],
+    is_limited: 0
   });
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -516,6 +261,16 @@ export default function App() {
       });
   };
 
+  useEffect(() => {
+    let timer: any;
+    if (resendTimer > 0) {
+      timer = setInterval(() => {
+        setResendTimer(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendTimer]);
+
   const fetchPromotions = () => {
     fetch('/api/promotions')
       .then(res => res.json())
@@ -526,6 +281,24 @@ export default function App() {
     fetch('/api/reviews')
       .then(res => res.json())
       .then(setReviews);
+  };
+
+  const fetchOrders = () => {
+    fetch('/api/orders')
+      .then(res => res.json())
+      .then(setOrders);
+  };
+
+  const updateOrderStatus = async (id: number, status: string) => {
+    const response = await fetch(`/api/orders/${id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    if (response.ok) {
+      fetchOrders();
+      showToastMsg('Order status updated');
+    }
   };
 
   const fetchSettings = () => {
@@ -566,17 +339,167 @@ export default function App() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const response = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(loginData)
-    });
-    if (response.ok) {
+    setIsLoading(true);
+    try {
+      // 1. Try Database Login first (for admin and traditional users)
+      const dbResponse = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: loginData.username,
+          password: loginData.password
+        })
+      });
+
+      if (dbResponse.ok) {
+        const dbData = await dbResponse.json();
+        if (dbData.success) {
+          setIsLoggedIn(true);
+          setCurrentUser(dbData.user);
+          localStorage.setItem('currentUser', JSON.stringify(dbData.user));
+          setCurrentView('home');
+          showToastMsg(`بەخێربێیتەوە ${dbData.user.full_name || dbData.user.username}`);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // 2. Fallback to Firebase Auth (if it looks like an email)
+      if (loginData.username.includes('@')) {
+        const userCredential = await signInWithEmailAndPassword(auth, loginData.username, loginData.password);
+        const user = userCredential.user;
+        
+        if (!user.emailVerified) {
+          setVerificationEmail(user.email || '');
+          await signOut(auth);
+          setCurrentView('verification');
+          setIsLoading(false);
+          return;
+        }
+
+        setIsLoggedIn(true);
+        setCurrentUser({
+          id: 0,
+          username: user.email || '',
+          full_name: user.displayName || user.email?.split('@')[0] || '',
+          phone: '',
+          address: '',
+          role: 'user',
+          is_admin: 0
+        });
+        setCurrentView('home');
+        showToastMsg(`بەخێربێیتەوە ${user.displayName || user.email}`);
+      } else {
+        showToastMsg("Email or password is incorrect");
+      }
+    } catch (error: any) {
+      console.error("Login error:", error);
+      const errorCode = error.code;
+      const errorMessage = error.message || '';
+      if (errorCode === 'auth/invalid-credential' || errorCode === 'auth/user-not-found' || errorCode === 'auth/wrong-password') {
+        showToastMsg("Email or password is incorrect");
+      } else {
+        showToastMsg(errorMessage || "Email or password is incorrect");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRequestCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/register/request-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: registerData.phone })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setRegStep('code');
+        setDebugCode(data.debug_code);
+        setResendTimer(60);
+        showToastMsg(language === 'en' ? 'Verification code sent' : 'کۆدی دڵنیایی نێردرا');
+      } else {
+        showToastMsg(data.error || (language === 'en' ? 'An error occurred' : 'هەڵەیەک ڕوویدا'));
+      }
+    } catch (err) {
+      showToastMsg(language === 'en' ? 'Connection error' : 'هەڵەی پەیوەندی');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/register/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: registerData.phone, code: verificationCode })
+      });
+      if (response.ok) {
+        setRegStep('details');
+        showToastMsg(language === 'en' ? 'Phone verified successfully' : 'ژمارەکەت دڵنیاکرایەوە');
+      } else {
+        const data = await response.json();
+        showToastMsg(data.error || (language === 'en' ? 'Invalid code' : 'کۆدەکە هەڵەیە'));
+      }
+    } catch (err) {
+      showToastMsg(language === 'en' ? 'Connection error' : 'هەڵەی پەیوەندی');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, registerData.username, registerData.password);
+      const user = userCredential.user;
+      await updateProfile(user, { displayName: registerData.full_name });
+      
+      await sendEmailVerification(user);
+      setVerificationEmail(user.email || '');
+      await signOut(auth);
+      setCurrentView('verification');
+      showToastMsg(language === 'en' ? 'Verification email sent' : 'ئیمەیڵی دڵنیایی نێردرا');
+    } catch (error: any) {
+      console.error("Register error:", error);
+      const errorCode = error.code;
+      const errorMessage = error.message || '';
+      if (errorCode === 'auth/email-already-in-use' || errorMessage.includes('auth/email-already-in-use')) {
+        showToastMsg("User already exists. Please sign in");
+      } else if (errorCode === 'auth/weak-password' || errorMessage.includes('auth/weak-password')) {
+        showToastMsg("Password should be at least 6 characters");
+      } else {
+        showToastMsg(errorMessage || 'هەڵەیەک ڕوویدا لە کاتی خۆتۆمارکردن');
+      }
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
       setIsLoggedIn(true);
-      setCurrentView('admin');
-      showToastMsg(t('welcomeAdmin'));
-    } else {
-      showToastMsg(t('loginError'));
+      setCurrentUser({
+        id: 0,
+        username: user.email || '',
+        full_name: user.displayName || user.email?.split('@')[0] || '',
+        phone: '',
+        address: '',
+        role: 'user',
+        is_admin: 0
+      });
+      setCurrentView('home');
+      showToastMsg(`بەخێربێیت ${user.displayName || user.email}`);
+    } catch (error: any) {
+      console.error("Google sign-in error:", error);
+      showToastMsg(language === 'en' ? "Google sign-in failed" : "چوونەژوورەوە بە گووگڵ سەرکەوتوو نەبوو");
     }
   };
 
@@ -888,36 +811,85 @@ export default function App() {
   };
 
   const handleCheckout = () => {
+    if (!isLoggedIn || !currentUser) {
+      showToastMsg(t('mustLoginOrder'));
+      setCurrentView('login');
+      setShowCart(false);
+      return;
+    }
+
     const whatsappNumber = "9647504394038";
     
-    const sendOrder = (locationUrl?: string) => {
-      let message = `🛒 *${t('newOrder')}*\n\n`;
-      
-      cart.forEach((item, index) => {
-        message += `${index + 1}. *${item.name}*\n`;
-        message += `   ⚖️ ${t('weight')}: ${item.weights[item.selectedWeight].w} ${t('gram')}\n`;
-        message += `   🔢 ${t('quantity')}: ${item.quantity}\n`;
-        message += `   💰 ${t('price')}: ${item.finalPrice.toLocaleString()} ${t('dinar')}\n\n`;
-      });
+    const sendOrder = async (locationUrl?: string) => {
+      // Save to DB first
+      try {
+        const orderResponse = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: currentUser.id,
+            items: cart.map(item => ({
+              id: item.id,
+              name: item.name,
+              weight: item.weights[item.selectedWeight].w,
+              quantity: item.quantity,
+              price: item.finalPrice
+            })),
+            total_price: finalTotal,
+            delivery_fee: deliveryFee,
+            discount_applied: discountAmount,
+            promo_code: appliedPromo?.code || null,
+            location_url: locationUrl
+          })
+        });
+        
+        if (!orderResponse.ok) {
+          throw new Error('Failed to save order');
+        }
 
-      message += "--------------------------\n";
-      message += `💵 ${t('total')}: ${cartTotal.toLocaleString()} ${t('dinar')}\n`;
-      message += `🚚 ${t('delivery')}: ${deliveryFee === 0 ? t('free') : deliveryFee.toLocaleString() + ' ' + t('dinar')}\n`;
-      message += `✨ *${t('finalTotal')}: ${(cartTotal + deliveryFee).toLocaleString()} ${t('dinar')}*\n`;
+        const orderData = await orderResponse.json();
+        const orderId = orderData.orderId;
 
-      if (locationUrl) {
-        message += `\n📍 *${t('location')}*:\n${locationUrl}`;
+        let message = `🛒 *${t('newOrder')} (#${orderId})*\n\n`;
+        
+        message += `👤 *${t('fullName')}*: ${currentUser.full_name}\n`;
+        message += `📞 *${t('phone')}*: ${currentUser.phone}\n`;
+        message += `🏠 *${t('address')}*: ${currentUser.address}\n\n`;
+
+        cart.forEach((item, index) => {
+          message += `${index + 1}. *${item.name}*\n`;
+          message += `   ⚖️ ${t('weight')}: ${item.weights[item.selectedWeight].w} ${t('gram')}\n`;
+          message += `   🔢 ${t('quantity')}: ${item.quantity}\n`;
+          message += `   💰 ${t('price')}: ${item.finalPrice.toLocaleString()} ${t('dinar')}\n\n`;
+        });
+
+        message += "--------------------------\n";
+        message += `💵 ${t('total')}: ${cartTotal.toLocaleString()} ${t('dinar')}\n`;
+        if (discountAmount > 0) {
+          message += `🎁 ${t('discount')}: -${discountAmount.toLocaleString()} ${t('dinar')}\n`;
+        }
+        message += `🚚 ${t('delivery')}: ${deliveryFee === 0 ? t('free') : deliveryFee.toLocaleString() + ' ' + t('dinar')}\n`;
+        message += `✨ *${t('finalTotal')}: ${finalTotal.toLocaleString()} ${t('dinar')}*\n`;
+
+        if (locationUrl) {
+          message += `\n📍 *${t('location')}*:\n${locationUrl}`;
+        }
+
+        const encodedMessage = encodeURIComponent(message);
+        const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
+        
+        window.open(whatsappUrl, '_blank');
+        
+        setLastOrder([...cart]);
+        setShowCart(false);
+        setShowCheckoutSuccess(true);
+        setCart([]);
+        setAppliedPromo(null);
+        fetchOrders();
+      } catch (error) {
+        console.error("Checkout error:", error);
+        showToastMsg(t('errorOccurred'));
       }
-
-      const encodedMessage = encodeURIComponent(message);
-      const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
-      
-      window.open(whatsappUrl, '_blank');
-      
-      setLastOrder([...cart]);
-      setShowCart(false);
-      setShowCheckoutSuccess(true);
-      setCart([]);
     };
 
     if ("geolocation" in navigator) {
@@ -937,6 +909,24 @@ export default function App() {
       );
     } else {
       sendOrder();
+    }
+  };
+  
+  const validatePromoCode = (code: string) => {
+    const validCodes: Record<string, number> = {
+      'SHERDLL10': 10,
+      'LAUNCH20': 20,
+      'NUTS5': 5
+    };
+
+    const upperCode = code.toUpperCase().trim();
+    if (validCodes[upperCode]) {
+      setAppliedPromo({ code: upperCode, discount: validCodes[upperCode] });
+      showToastMsg(t('promoApplied'));
+      return true;
+    } else {
+      showToastMsg(t('invalidPromo'));
+      return false;
     }
   };
 
@@ -972,8 +962,34 @@ export default function App() {
     }
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.finalPrice, 0);
-  const deliveryFee = cartTotal > freeThreshold ? 0 : deliveryFeeVal;
+  const cartTotal = useMemo(() => {
+    return cart.reduce((sum, item) => sum + item.finalPrice, 0);
+  }, [cart]);
+
+  const discountAmount = useMemo(() => {
+    let totalDiscount = 0;
+    
+    // First order discount (10%)
+    if (isLoggedIn && userOrdersCount === 0 && cart.length > 0) {
+      totalDiscount += cartTotal * 0.1;
+    }
+    
+    // Promo code discount
+    if (appliedPromo) {
+      totalDiscount += cartTotal * (appliedPromo.discount / 100);
+    }
+    
+    return Math.floor(totalDiscount);
+  }, [cartTotal, isLoggedIn, userOrdersCount, appliedPromo, cart.length]);
+
+  const deliveryFee = useMemo(() => {
+    if (cartTotal === 0) return 0;
+    return cartTotal >= freeThreshold ? 0 : deliveryFeeVal;
+  }, [cartTotal, freeThreshold, deliveryFeeVal]);
+
+  const finalTotal = useMemo(() => {
+    return Math.max(0, cartTotal - discountAmount + deliveryFee);
+  }, [cartTotal, discountAmount, deliveryFee]);
 
   const filteredProducts = useMemo(() => {
     if (!searchQuery) return products;
@@ -982,204 +998,119 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0f0f0f] pb-24">
+      <TopBanner t={t} />
+      <ScrollProgress />
+      <AnimatePresence>
+        {isLoading && <WelcomeLoader appLogo={appLogo} />}
+      </AnimatePresence>
+
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/10 h-14 flex items-center justify-between px-4" dir={language === 'en' || language === 'tr' ? 'ltr' : 'rtl'}>
-        {isSearching ? (
-          <div className="flex-1 flex items-center gap-2">
-            <button 
-              onClick={() => { setIsSearching(false); setSearchQuery(''); }}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
-            >
-              <X size={24} />
-            </button>
-            <input 
-              autoFocus
-              type="text"
-              placeholder={t('search')}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-500 text-sm"
-            />
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setShowSideMenu(true)}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors"
-              >
-                <Menu size={24} />
-              </button>
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center overflow-hidden">
-                  {appLogo ? (
-                    <img src={appLogo} alt="Logo" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-white font-bold text-xs">چەرەزاتی شێردڵ</span>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => setIsSearching(true)}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors relative"
-              >
-                <Search size={24} />
-              </button>
-              <button 
-                onClick={() => setShowReviews(true)}
-                className="flex items-center gap-1 p-1.5 hover:bg-white/10 rounded-full transition-colors"
-              >
-                <Star size={22} className="text-yellow-500" fill="currentColor" />
-                <span className="text-xs font-bold text-yellow-500 pr-1">{averageRating}</span>
-              </button>
-              <button 
-                onClick={() => setShowCart(true)}
-                className={`p-2 hover:bg-white/10 rounded-full transition-colors relative ${cart.length > 0 ? 'cart-pulse' : ''}`}
-              >
-                <ShoppingCart size={24} />
-                {cart.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                    {cart.reduce((s, i) => s + i.quantity, 0)}
-                  </span>
-                )}
-              </button>
-            </div>
-          </>
-        )}
-      </header>
+      <Header 
+        language={language}
+        setLanguage={setLanguage}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        isSearching={isSearching}
+        setIsSearching={setIsSearching}
+        cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
+        setShowCart={setShowCart}
+        setShowSideMenu={setShowSideMenu}
+        isLoggedIn={isLoggedIn}
+        currentUser={currentUser}
+        setCurrentView={setCurrentView}
+        averageRating={averageRating}
+        setShowReviews={setShowReviews}
+        appLogo={appLogo}
+        t={t}
+      />
 
       {/* Side Menu Drawer */}
-      <AnimatePresence>
-        {showSideMenu && (
-          <>
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowSideMenu(false)}
-              className="fixed inset-0 bg-black/60 z-[100]"
+      <SideMenu 
+        showSideMenu={showSideMenu}
+        setShowSideMenu={setShowSideMenu}
+        language={language}
+        setLanguage={setLanguage}
+        setCurrentView={setCurrentView}
+        currentView={currentView}
+        setShowCart={setShowCart}
+        currentUser={currentUser}
+        appLogo={appLogo}
+        t={t}
+      />
+
+      <main className="pt-14 w-full max-w-7xl mx-auto" dir={language === 'en' || language === 'tr' ? 'ltr' : 'rtl'}>
+        {currentView === 'home' ? (
+          <div className="flex flex-col lg:flex-row gap-6">
+            <CategorySidebar 
+              isSearching={isSearching}
+              selectedCategory={selectedCategory}
+              setSelectedCategory={setSelectedCategory}
+              categories={categories}
+              getName={getName}
+              t={t}
             />
-            <motion.div 
-              initial={{ x: language === 'en' || language === 'tr' ? '-100%' : '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: language === 'en' || language === 'tr' ? '-100%' : '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={`fixed top-0 ${language === 'en' || language === 'tr' ? 'left-0' : 'right-0'} bottom-0 w-72 bg-[#1a1a1a] z-[101] shadow-2xl flex flex-col`}
-              dir={language === 'en' || language === 'tr' ? 'ltr' : 'rtl'}
-            >
-              <div className="p-6 border-b border-white/10 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center overflow-hidden">
-                    {appLogo ? <img src={appLogo} className="w-full h-full object-cover" /> : <span className="text-white font-bold">S</span>}
+
+            <div className="flex-1 min-w-0">
+              {!isSearching && !selectedCategory && (
+                <>
+                  <div className="md:mt-4">
+                    <PromoSlider promotions={promotions} getName={getName} />
                   </div>
-                  <span className="font-bold text-lg">چەرەزاتی شێردڵ</span>
-                </div>
-                <button onClick={() => setShowSideMenu(false)} className="p-2 hover:bg-white/10 rounded-full">
-                  <X size={24} />
-                </button>
-              </div>
 
-              <div className="flex-1 p-4 space-y-2 overflow-y-auto">
-                <button 
-                  onClick={() => { setCurrentView('home'); setShowSideMenu(false); }}
-                  className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 transition-colors text-gray-300"
-                >
-                  <Home size={22} />
-                  <span className="font-medium">{t('home')}</span>
-                </button>
-                <button 
-                  onClick={() => { setShowCart(true); setShowSideMenu(false); }}
-                  className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 transition-colors text-gray-300"
-                >
-                  <ShoppingCart size={22} />
-                  <span className="font-medium">{t('cart')}</span>
-                </button>
-                <button 
-                  className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 transition-colors text-gray-300"
-                >
-                  <Info size={22} />
-                  <span className="font-medium">{t('about')}</span>
-                </button>
-                
-                <div className="pt-4 mt-4 border-t border-white/10 space-y-2">
-                  <button 
-                    onClick={() => { 
-                      setCurrentView(isLoggedIn ? 'admin' : 'login'); 
-                      setShowSideMenu(false); 
-                    }}
-                    className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-colors ${currentView === 'admin' || currentView === 'login' ? 'bg-red-600 text-white' : 'hover:bg-white/5 text-gray-300'}`}
-                  >
-                    <User size={22} />
-                    <span className="font-medium">{isLoggedIn ? t('admin') : t('adminLogin')}</span>
-                  </button>
+                  {/* Featured Categories (Desktop Only) */}
+                  <div className="px-4 mt-10">
+                    <FeaturedCategories 
+                      categories={categories}
+                      setSelectedCategory={setSelectedCategory}
+                      getName={getName}
+                      t={t}
+                    />
+                  </div>
+                  
+                  {/* Mobile Categories Grid (Hidden on Desktop Sidebar) */}
+                  <MobileCategoriesGrid 
+                    categories={categories}
+                    setSelectedCategory={setSelectedCategory}
+                    getName={getName}
+                    t={t}
+                  />
 
-                  <div className="p-4 rounded-2xl bg-white/5 space-y-3">
-                    <div className="flex items-center gap-3 text-gray-400 mb-1">
-                      <Languages size={20} />
-                      <span className="text-sm font-medium">{t('language')}</span>
+                  {/* Special Offers Section */}
+                  <SpecialOffers 
+                    products={products}
+                    setSelectedProduct={setSelectedProduct}
+                    getName={getName}
+                    language={language}
+                    t={t}
+                  />
+
+                  {/* Limited Time Offers (New) */}
+                  <div className="px-4 mt-12 mb-8">
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h2 className="text-2xl font-black tracking-tighter uppercase">{t('limitedTimeOffers')}</h2>
+                        <p className="text-xs text-gray-500 font-medium uppercase tracking-widest">{t('limitedTime')}</p>
+                      </div>
+                      <div className="flex items-center gap-2 bg-red-600/10 px-3 py-1.5 rounded-full border border-red-600/20">
+                        <Clock size={14} className="text-red-600 animate-pulse" />
+                        <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider">Ends in: 02:45:12</span>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { id: 'ku', label: 'Kurdî', flag: '☀️' },
-                        { id: 'ar', label: 'العربية', flag: '🇮🇶' },
-                        { id: 'en', label: 'English', flag: '🇺🇸' },
-                        { id: 'tr', label: 'Türkçe', flag: '🇹🇷' }
-                      ].map((lang) => (
-                        <button
-                          key={lang.id}
-                          onClick={() => setLanguage(lang.id as any)}
-                          className={`py-2 px-3 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-2 ${language === lang.id ? 'bg-red-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
-                        >
-                          <span>{lang.flag}</span>
-                          <span>{lang.label}</span>
-                        </button>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {products.filter(p => p.is_limited).slice(0, 4).map(product => (
+                        <ProductCard 
+                          key={product.id}
+                          product={product}
+                          setSelectedProduct={setSelectedProduct}
+                          addToCart={addToCart}
+                          getName={getName}
+                          t={t}
+                        />
                       ))}
                     </div>
                   </div>
-                </div>
-              </div>
-
-              <div className="p-6 border-t border-white/10 text-center space-y-1">
-                <p className="text-xs text-gray-400 font-medium">sherdll development Muhammed aziz Rahman</p>
-                <p className="text-[10px] text-gray-500">{t('version')} 1.0</p>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      <main className="pt-14" dir={language === 'en' || language === 'tr' ? 'ltr' : 'rtl'}>
-        {currentView === 'home' ? (
-          <>
-            {!isSearching && !selectedCategory && (
-              <>
-                <PromoSlider promotions={promotions} getName={getName} />
-                <div className="px-4 mt-6 mb-2">
-                  <h2 className="text-xl font-bold">{t('manageCategories')}</h2>
-                </div>
-                <div className="px-4 mt-2">
-                  <div className="grid grid-cols-4 gap-3">
-                    {categories.map(cat => (
-                      <button
-                        key={cat.id}
-                        onClick={() => setSelectedCategory(cat.id)}
-                        className="flex flex-col items-center gap-2 p-2 rounded-2xl transition-all bg-[#1a1a1a] hover:bg-[#262626]"
-                      >
-                        <div className="w-full aspect-square rounded-xl overflow-hidden bg-[#262626]">
-                          <img src={cat.icon} alt={getName(cat)} className="w-full h-full object-cover" />
-                        </div>
-                        <span className="text-[10px] font-bold text-center line-clamp-1 text-gray-400">
-                          {getName(cat)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
+                </>
+              )}
 
             {isSearching && (
               <div className="px-4 mt-6">
@@ -1193,166 +1124,393 @@ export default function App() {
               </div>
             )}
 
-            {/* Products List */}
-            {(isSearching || selectedCategory) && (
-              <div className="px-4 py-4">
-                <div className="flex items-center gap-3 mb-6">
-                  {selectedCategory && !isSearching && (
-                    <button 
-                      onClick={() => setSelectedCategory('')}
-                      className="p-2 bg-[#1a1a1a] rounded-full text-red-600 hover:bg-[#262626] transition-colors"
-                    >
-                      {language === 'en' || language === 'tr' ? <ChevronLeft size={24} /> : <ChevronRight size={24} />}
-                    </button>
-                  )}
-                  <h2 className="text-xl font-bold">
-                    {isSearching ? t('searchResult') : getName(categories.find(c => c.id === selectedCategory))}
-                  </h2>
-                  <div className="flex-1" />
-                  <span className="text-sm text-gray-400">{filteredProducts.length} {t('itemsCount')}</span>
-                </div>
-                
-                {filteredProducts.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-                    <Grid size={48} className="opacity-20 mb-4" />
-                    <p>{t('noProductsInCategory')}</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3">
-                    {filteredProducts.map(product => (
-                      <motion.div 
-                        layout
-                        key={product.id} 
-                        className="bg-[#1a1a1a] rounded-2xl overflow-hidden relative group"
-                        onClick={() => setSelectedProduct(product)}
-                      >
-                        {product.discount && (
-                          <div className="absolute top-2 left-2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-lg z-10 flex items-center gap-1">
-                            <span>{product.discount}%</span>
-                            <span>{t('discount')}</span>
-                          </div>
-                        )}
+              {/* Products List */}
+              {(isSearching || selectedCategory || (!isSearching && !selectedCategory)) && (
+                <div className="px-4 py-4">
+                  {(isSearching || selectedCategory) && (
+                    <div className="flex items-center gap-3 mb-6">
+                      {selectedCategory && !isSearching && (
                         <button 
-                          onClick={(e) => { e.stopPropagation(); addToCart(product, 0, 1); }}
-                          className="absolute top-2 right-2 w-8 h-8 bg-red-600 rounded-full flex items-center justify-center shadow-lg z-10 hover:scale-110 transition-transform"
+                          onClick={() => setSelectedCategory('')}
+                          className="p-2 bg-[#1a1a1a] rounded-full text-red-600 hover:bg-[#262626] transition-colors lg:hidden"
                         >
-                          <Plus size={20} />
+                          {language === 'en' || language === 'tr' ? <ChevronLeft size={24} /> : <ChevronRight size={24} />}
                         </button>
-                        <div className="aspect-square overflow-hidden bg-[#262626]">
-                          <img src={product.image} alt={getName(product)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        </div>
-                        <div className="p-3">
-                          <h3 className="text-sm font-medium mb-2 line-clamp-2 h-10">{getName(product)}</h3>
-                          <div className="flex items-center gap-2">
-                            {product.old_price && (
-                              <span className="text-xs text-gray-500 line-through">{product.old_price.toLocaleString()}</span>
-                            )}
-                            <span className="text-red-600 font-bold text-sm">{product.price.toLocaleString()} دینار</span>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
+                      )}
+                      <h2 className="text-xl font-bold">
+                        {isSearching ? t('searchResult') : getName(categories.find(c => c.id === selectedCategory))}
+                      </h2>
+                      <div className="flex-1" />
+                      <span className="text-sm text-gray-400">{filteredProducts.length} {t('itemsCount')}</span>
+                    </div>
+                  )}
+
+                  {!isSearching && !selectedCategory && (
+                    <div className="px-0 mt-8 mb-4">
+                      <h2 className="text-xl font-bold">{t('allProducts')}</h2>
+                    </div>
+                  )}
+                  
+                  {filteredProducts.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+                      <Grid size={48} className="opacity-20 mb-4" />
+                      <p>{t('noProductsInCategory')}</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {filteredProducts.map(product => (
+                        <ProductCard 
+                          key={product.id}
+                          product={product}
+                          setSelectedProduct={setSelectedProduct}
+                          addToCart={addToCart}
+                          getName={getName}
+                          t={t}
+                        />
+                      ))}
                   </div>
+                )}
+
+                {!isSearching && !selectedCategory && (
+                  <Newsletter t={t} />
                 )}
               </div>
             )}
-          </>
+            </div>
+          </div>
+        ) : currentView === 'verification' ? (
+          <div className="px-4 py-20 flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mb-8">
+              <Bell size={40} color="white" />
+            </div>
+            <h2 className="text-2xl font-bold mb-4">
+              {language === 'en' ? 'Verify Your Email' : 'ئیمەیڵەکەت دڵنیا بکەرەوە'}
+            </h2>
+            <p className="text-gray-400 mb-8 max-w-sm">
+              {language === 'en' 
+                ? `We have sent you a verification email to ${verificationEmail}. Please verify it and log in.`
+                : `ئیمەیڵێکی دڵنیاییمان ناردووە بۆ ${verificationEmail}. تکایە دڵنیای بکەرەوە و پاشان بچۆ ژوورەوە.`}
+            </p>
+            <button 
+              onClick={() => setCurrentView('login')}
+              className="w-full max-w-sm bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-red-600/20"
+            >
+              {language === 'en' ? 'Login' : 'چوونەژوورەوە'}
+            </button>
+          </div>
         ) : currentView === 'login' ? (
           <div className="px-4 py-20 flex flex-col items-center">
             <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mb-8">
               <User size={40} color="white" />
             </div>
-            <h2 className="text-2xl font-bold mb-8">چوونەژوورەوەی ئەدمین</h2>
-            <form onSubmit={handleLogin} className="w-full max-w-sm space-y-4 bg-[#1a1a1a] p-8 rounded-3xl">
+            <h2 className="text-2xl font-bold mb-8">{language === 'en' ? 'User Login' : language === 'tr' ? 'Kullanıcı Girişi' : 'چوونەژوورەوەی بەکارهێنەر'}</h2>
+            <form onSubmit={handleLogin} className="w-full max-w-sm space-y-4 bg-[#1a1a1a] p-8 rounded-3xl shadow-2xl border border-white/5">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">ناوی بەکارهێنەر</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">{language === 'en' ? 'Email' : language === 'tr' ? 'E-posta' : 'ئیمەیڵ'}</label>
                 <input 
-                  type="text"
+                  type="email"
                   required
                   value={loginData.username}
                   onChange={(e) => setLoginData({...loginData, username: e.target.value})}
                   className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
-                  placeholder="ناوی بەکارهێنەر..."
+                  placeholder="email@example.com"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">وشەی نهێنی</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">{language === 'en' ? 'Password' : language === 'tr' ? 'Şifre' : 'وشەی نهێنی'}</label>
                 <input 
                   type="password"
                   required
                   value={loginData.password}
                   onChange={(e) => setLoginData({...loginData, password: e.target.value})}
                   className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
-                  placeholder="وشەی نهێنی..."
+                  placeholder="..."
                 />
               </div>
               <button 
                 type="submit"
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors mt-4"
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors mt-4 shadow-lg shadow-red-600/20"
               >
-                چوونەژوورەوە
+                {language === 'en' ? 'Login' : language === 'tr' ? 'Giriş Yap' : 'چوونەژوورەوە'}
+              </button>
+
+              <div className="relative flex items-center justify-center py-2">
+                <div className="flex-grow border-t border-white/10"></div>
+                <span className="flex-shrink mx-4 text-gray-500 text-sm">{language === 'en' ? 'OR' : 'یان'}</span>
+                <div className="flex-grow border-t border-white/10"></div>
+              </div>
+
+              <button 
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-4 rounded-2xl transition-colors flex items-center justify-center gap-3 shadow-lg"
+              >
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
+                {language === 'en' ? 'Continue with Google' : 'بەردەوامبە لەگەڵ گووگڵ'}
+              </button>
+              <div className="text-center pt-4 space-y-4">
+                <p className="text-sm text-gray-500">{t('noAccount')} <button type="button" onClick={() => setCurrentView('register')} className="text-red-600 font-bold hover:underline">{t('register')}</button></p>
+              </div>
+            </form>
+          </div>
+        ) : currentView === 'admin_login' ? (
+          <div className="px-4 py-20 flex flex-col items-center">
+            <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mb-8">
+              <Grid size={40} color="white" />
+            </div>
+            <h2 className="text-2xl font-bold mb-8">{t('adminLogin')}</h2>
+            <form onSubmit={handleLogin} className="w-full max-w-sm space-y-4 bg-[#1a1a1a] p-8 rounded-3xl shadow-2xl border border-white/5">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Admin Email</label>
+                <input 
+                  type="text"
+                  required
+                  value={loginData.username}
+                  onChange={(e) => setLoginData({...loginData, username: e.target.value})}
+                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Admin Password</label>
+                <input 
+                  type="password"
+                  required
+                  value={loginData.password}
+                  onChange={(e) => setLoginData({...loginData, password: e.target.value})}
+                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                />
+              </div>
+              <button 
+                type="submit"
+                className="w-full bg-gray-800 hover:bg-gray-700 text-white font-bold py-4 rounded-2xl transition-colors mt-4"
+              >
+                Login as Admin
+              </button>
+              <button 
+                type="button"
+                onClick={() => setCurrentView('login')}
+                className="w-full text-sm text-gray-500 mt-4"
+              >
+                {t('back')}
               </button>
             </form>
           </div>
-        ) : (
+        ) : currentView === 'register' ? (
+          <div className="px-4 py-10 flex flex-col items-center">
+            <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mb-6">
+              <User size={40} color="white" />
+            </div>
+            <h2 className="text-2xl font-bold mb-6">{t('register')}</h2>
+            
+            <div className="w-full max-w-sm bg-[#1a1a1a] p-8 rounded-3xl shadow-2xl border border-white/5 relative overflow-hidden">
+              {isLoading && (
+                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                  <div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
+
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">{t('fullName')}</label>
+                  <input 
+                    type="text"
+                    required
+                    value={registerData.full_name}
+                    onChange={(e) => setRegisterData({...registerData, full_name: e.target.value})}
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                    placeholder="..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">{language === 'en' ? 'Email' : language === 'tr' ? 'E-posta' : 'ئیمەیڵ'}</label>
+                  <input 
+                    type="email"
+                    required
+                    value={registerData.username}
+                    onChange={(e) => setRegisterData({...registerData, username: e.target.value})}
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                    placeholder="email@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">{language === 'en' ? 'Password' : language === 'tr' ? 'Şifre' : 'وشەی نهێنی'}</label>
+                  <input 
+                    type="password"
+                    required
+                    value={registerData.password}
+                    onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                    placeholder="..."
+                  />
+                </div>
+                <button 
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl transition-colors mt-4 shadow-lg shadow-red-600/20"
+                >
+                  {t('register')}
+                </button>
+
+                <div className="relative flex items-center justify-center py-2">
+                  <div className="flex-grow border-t border-white/10"></div>
+                  <span className="flex-shrink mx-4 text-gray-500 text-sm">{language === 'en' ? 'OR' : 'یان'}</span>
+                  <div className="flex-grow border-t border-white/10"></div>
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  className="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-4 rounded-2xl transition-colors flex items-center justify-center gap-3 shadow-lg"
+                >
+                  <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
+                  {language === 'en' ? 'Continue with Google' : 'بەردەوامبە لەگەڵ گووگڵ'}
+                </button>
+                <div className="text-center pt-4">
+                  <p className="text-sm text-gray-500">{t('haveAccount')} <button type="button" onClick={() => setCurrentView('login')} className="text-red-600 font-bold hover:underline">{language === 'en' ? 'Login' : 'چوونەژوورەوە'}</button></p>
+                </div>
+              </form>
+            </div>
+          </div>
+        ) : currentView === 'profile' ? (
+          <div className="px-4 py-10 flex flex-col items-center">
+            <div className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-red-600/20">
+              <User size={48} color="white" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2">{currentUser?.full_name || currentUser?.username}</h2>
+            <p className="text-gray-500 mb-8">@{currentUser?.username}</p>
+            
+            <div className="w-full max-w-sm space-y-4">
+              <div className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/5 space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
+                    <User size={20} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">{t('fullName')}</p>
+                    <p className="font-medium">{currentUser?.full_name || '-'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
+                    <MapPin size={20} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">{t('address')}</p>
+                    <p className="font-medium">{currentUser?.address || '-'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
+                    <Bell size={20} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">{t('phone')}</p>
+                    <p className="font-medium">{currentUser?.phone || '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {currentUser?.is_admin && (
+                <button 
+                  onClick={() => setCurrentView('admin')}
+                  className="w-full bg-[#1a1a1a] hover:bg-white/5 text-white font-bold py-4 rounded-2xl transition-colors border border-white/5 flex items-center justify-center gap-3"
+                >
+                  <Grid size={20} className="text-red-600" />
+                  {t('admin')}
+                </button>
+              )}
+
+              <button 
+                onClick={() => {
+                  signOut(auth);
+                  setIsLoggedIn(false);
+                  setCurrentUser(null);
+                  localStorage.removeItem('currentUser');
+                  setCurrentView('login');
+                  showToastMsg('بە سەرکەوتوویی چوویتە دەرەوە');
+                }}
+                className="w-full bg-white/5 hover:bg-red-600/10 text-red-600 font-bold py-4 rounded-2xl transition-colors border border-red-600/20"
+              >
+                {t('logout')}
+              </button>
+            </div>
+          </div>
+        ) : (currentView === 'admin' && currentUser?.is_admin) ? (
           <div className="px-4 py-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-red-600">بەڕێوەبردن</h2>
-              <button 
-                onClick={() => { setIsLoggedIn(false); setCurrentView('home'); }}
-                className="text-sm text-gray-500 border border-white/10 px-3 py-1 rounded-full"
-              >
-                چوونەدەرەوە
-              </button>
-            </div>
+            <div className="flex flex-col lg:flex-row gap-8">
+              {/* Admin Sidebar for Desktop */}
+              <div className="hidden lg:block w-64 flex-shrink-0 space-y-2">
+                <div className="bg-[#1a1a1a] p-6 rounded-3xl mb-6">
+                  <h2 className="text-xl font-bold text-red-600 mb-1">{t('welcomeAdmin')}</h2>
+                  <p className="text-sm text-gray-500">{currentUser?.full_name}</p>
+                </div>
+                
+                {[
+                  { id: 'items', label: t('addProduct'), icon: <Plus size={20} /> },
+                  { id: 'manage_products', label: t('manageProducts'), icon: <Grid size={20} /> },
+                  { id: 'manage_cats', label: t('manageCategories'), icon: <Grid size={20} /> },
+                  { id: 'new_cat', label: t('newCategory'), icon: <Plus size={20} /> },
+                  { id: 'promotions', label: t('promotions'), icon: <Gift size={20} /> },
+                  { id: 'delivery', label: t('deliverySettings'), icon: <MapPin size={20} /> },
+                  { id: 'orders', label: t('orders'), icon: <ShoppingBag size={20} /> },
+                  { id: 'settings', label: t('settings'), icon: <Grid size={20} /> }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setAdminTab(tab.id as any);
+                      if (tab.id === 'manage_products') fetchProducts(true);
+                      if (tab.id === 'orders') fetchOrders();
+                    }}
+                    className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all ${adminTab === tab.id ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-[#1a1a1a] text-gray-400 hover:bg-[#262626]'}`}
+                  >
+                    {tab.icon}
+                    <span className="font-bold text-sm">{tab.label}</span>
+                  </button>
+                ))}
+              </div>
 
-            {/* Admin Tabs */}
-            <div className="flex gap-2 mb-6 overflow-x-auto hide-scrollbar pb-2">
-              <button 
-                onClick={() => setAdminTab('items')}
-                className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'items' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
-              >
-                {t('addProduct')}
-              </button>
-              <button 
-                onClick={() => { setAdminTab('manage_products'); fetchProducts(true); }}
-                className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'manage_products' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
-              >
-                {t('manageProducts')}
-              </button>
-              <button 
-                onClick={() => setAdminTab('manage_cats')}
-                className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'manage_cats' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
-              >
-                {t('manageCategories')}
-              </button>
-              <button 
-                onClick={() => setAdminTab('promotions')}
-                className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'promotions' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
-              >
-                {t('promotions')}
-              </button>
-              <button 
-                onClick={() => setAdminTab('delivery')}
-                className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'delivery' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
-              >
-                {t('deliverySettings')}
-              </button>
-              <button 
-                onClick={() => setAdminTab('new_cat')}
-                className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'new_cat' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
-              >
-                {t('newCategory')}
-              </button>
-              <button 
-                onClick={() => setAdminTab('settings')}
-                className={`px-4 py-2 rounded-full whitespace-nowrap transition-all ${adminTab === 'settings' ? 'bg-red-600 text-white' : 'bg-[#1a1a1a] text-gray-400'}`}
-              >
-                {t('settings')}
-              </button>
-            </div>
+              {/* Mobile Admin Header */}
+              <div className="lg:hidden">
+                <div className="bg-[#1a1a1a] p-6 rounded-3xl mb-6 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-red-600">{t('welcomeAdmin')}</h2>
+                    <p className="text-gray-500">{currentUser?.full_name}</p>
+                  </div>
+                  <button onClick={() => setCurrentView('home')} className="p-2 bg-[#262626] rounded-full">
+                    <X size={24} />
+                  </button>
+                </div>
 
-            {adminTab === 'items' && (
+                <div className="flex gap-2 overflow-x-auto pb-4 mb-6 no-scrollbar">
+                  {[
+                    { id: 'items', label: t('addProduct') },
+                    { id: 'manage_products', label: t('manageProducts') },
+                    { id: 'manage_cats', label: t('manageCategories') },
+                    { id: 'new_cat', label: t('newCategory') },
+                    { id: 'promotions', label: t('promotions') },
+                    { id: 'delivery', label: t('deliverySettings') },
+                    { id: 'orders', label: t('orders') },
+                    { id: 'settings', label: t('settings') }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setAdminTab(tab.id as any);
+                        if (tab.id === 'manage_products') fetchProducts(true);
+                        if (tab.id === 'orders') fetchOrders();
+                      }}
+                      className={`flex-shrink-0 px-6 py-3 rounded-2xl font-bold transition-all ${adminTab === tab.id ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-[#1a1a1a] text-gray-400'}`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Admin Content Area */}
+              <div className="flex-1 min-w-0">
+                {adminTab === 'items' && (
               <form onSubmit={handleAddProduct} className="space-y-4 bg-[#1a1a1a] p-6 rounded-3xl">
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-1">هاوپۆل</label>
@@ -1422,6 +1580,19 @@ export default function App() {
                       placeholder="نموونە: 20"
                     />
                   </div>
+                </div>
+
+                <div className="flex items-center gap-3 bg-[#262626] p-4 rounded-xl border border-white/5">
+                  <input 
+                    type="checkbox"
+                    id="is_limited_new"
+                    checked={newProduct.is_limited === 1}
+                    onChange={(e) => setNewProduct({...newProduct, is_limited: e.target.checked ? 1 : 0})}
+                    className="w-5 h-5 accent-red-600"
+                  />
+                  <label htmlFor="is_limited_new" className="text-sm font-bold text-white cursor-pointer">
+                    {t('limitedTimeOffers')} (Limited Time)
+                  </label>
                 </div>
 
                 <div>
@@ -1631,6 +1802,79 @@ export default function App() {
               </form>
             )}
 
+            {adminTab === 'orders' && (
+              <div className="space-y-4">
+                <h3 className="text-xl font-bold mb-4">{t('orders')}</h3>
+                {orders.length === 0 ? (
+                  <p className="text-gray-500 text-center py-10">هیچ داواکارییەک نییە</p>
+                ) : (
+                  orders.map(order => (
+                    <div key={order.id} className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/5 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-red-600 font-bold">#{order.id}</p>
+                          <p className="text-xs text-gray-500">{new Date(order.date).toLocaleString()}</p>
+                        </div>
+                        <select 
+                          value={order.status}
+                          onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                          className={`text-xs font-bold px-3 py-1 rounded-full outline-none ${
+                            order.status === 'completed' ? 'bg-green-500/20 text-green-500' :
+                            order.status === 'cancelled' ? 'bg-red-500/20 text-red-500' :
+                            'bg-yellow-500/20 text-yellow-500'
+                          }`}
+                        >
+                          <option value="pending">{t('pending')}</option>
+                          <option value="completed">{t('completed')}</option>
+                          <option value="cancelled">{t('cancelled')}</option>
+                        </select>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-500 text-xs">{t('fullName')}</p>
+                          <p>{order.full_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-xs">{t('phone')}</p>
+                          <p>{order.phone}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-gray-500 text-xs">{t('address')}</p>
+                          <p>{order.address}</p>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-white/5 pt-4 space-y-2">
+                        {order.items.map((item: any, idx: number) => (
+                          <div key={idx} className="flex justify-between text-sm">
+                            <span className="text-gray-400">{item.quantity}x {item.name} ({item.weight}g)</span>
+                            <span>{item.price.toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="border-t border-white/5 pt-4 flex justify-between font-bold">
+                        <span>{t('total')}</span>
+                        <span className="text-red-600">{(order.total_price + order.delivery_fee).toLocaleString()} {t('dinar')}</span>
+                      </div>
+
+                      {order.location_url && (
+                        <a 
+                          href={order.location_url} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="block w-full text-center py-2 bg-blue-600/10 text-blue-500 rounded-xl text-sm font-bold"
+                        >
+                          📍 {t('location')}
+                        </a>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
             {adminTab === 'new_cat' && (
               <form onSubmit={handleAddCategory} className="space-y-4 bg-[#1a1a1a] p-6 rounded-3xl">
                 <div>
@@ -1716,8 +1960,14 @@ export default function App() {
                 </div>
               </div>
             )}
+            </div>
           </div>
-        )}
+        </div>
+        ) : currentView === 'video_ai' ? (
+          <VideoAI t={t} />
+        ) : null}
+        
+        {currentView === 'home' && <Footer appLogo={appLogo} t={t} />}
       </main>
 
       {/* Edit Product Modal */}
@@ -1796,6 +2046,19 @@ export default function App() {
                       className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 outline-none"
                     />
                   </div>
+                </div>
+
+                <div className="flex items-center gap-3 bg-[#262626] p-4 rounded-xl border border-white/5">
+                  <input 
+                    type="checkbox"
+                    id="is_limited_edit"
+                    checked={editingProduct.is_limited === 1}
+                    onChange={(e) => setEditingProduct({...editingProduct, is_limited: e.target.checked ? 1 : 0})}
+                    className="w-5 h-5 accent-red-600"
+                  />
+                  <label htmlFor="is_limited_edit" className="text-sm font-bold text-white cursor-pointer">
+                    {t('limitedTimeOffers')} (Limited Time)
+                  </label>
                 </div>
 
                 <div>
@@ -2024,163 +2287,45 @@ export default function App() {
       </AnimatePresence>
 
       {/* Bottom Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-white/10 px-6 py-2 flex justify-around items-center z-40" dir={language === 'en' || language === 'tr' ? 'ltr' : 'rtl'}>
-        <button 
-          onClick={() => setCurrentView('home')}
-          className={`flex flex-col items-center gap-1 p-2 ${currentView === 'home' ? 'text-red-600' : 'text-gray-500'}`}
-        >
-          <Home size={24} />
-          <span className="text-xs">{t('home')}</span>
-        </button>
-        <button 
-          onClick={() => setShowCart(true)}
-          className={`flex flex-col items-center gap-1 p-2 transition-colors ${cart.length > 0 ? 'color-breathing' : 'text-gray-500'}`}
-        >
-          <ShoppingBag size={24} />
-          <span className="text-xs">{t('order')}</span>
-        </button>
-        <button 
-          onClick={() => setShowCart(true)}
-          className="flex flex-col items-center gap-1 p-2 text-gray-500"
-        >
-          <ShoppingCart size={24} />
-          <span className="text-xs">{t('cart')}</span>
-        </button>
-      </nav>
+      <BottomNav 
+        currentView={currentView}
+        setCurrentView={setCurrentView}
+        setShowCart={setShowCart}
+        cartLength={cart.length}
+        isLoggedIn={isLoggedIn}
+        t={t}
+      />
 
-      {/* Product Detail Modal */}
-      <AnimatePresence>
-        {selectedProduct && (
-          <motion.div 
-            initial={{ x: language === 'en' || language === 'tr' ? '100%' : '-100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: language === 'en' || language === 'tr' ? '100%' : '-100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed inset-0 z-[60] bg-[#0f0f0f] flex flex-col"
-            dir={language === 'en' || language === 'tr' ? 'ltr' : 'rtl'}
-          >
-            <div className="flex items-center justify-between p-4 border-b border-white/10">
-              <button onClick={() => setSelectedProduct(null)} className="p-2 hover:bg-white/10 rounded-full">
-                {language === 'en' || language === 'tr' ? <ChevronLeft size={24} /> : <ChevronRight size={24} />}
-              </button>
-              <h2 className="font-bold">{selectedProduct.name}</h2>
-              <button className="p-2 hover:bg-white/10 rounded-full">
-                <Heart size={24} />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto">
-              <div className="aspect-square bg-white relative">
-                <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-cover" />
-              </div>
-              
-              <div className="p-4 space-y-4">
-                <h1 className="text-xl font-bold">{selectedProduct.name}</h1>
-                
-                <div className="flex items-center gap-3">
-                  {selectedProduct.old_price && (
-                    <span className="text-gray-500 line-through text-lg">{selectedProduct.old_price.toLocaleString()} دینار</span>
-                  )}
-                  <span className="text-3xl font-bold text-white">{selectedProduct.price.toLocaleString()} <span className="text-sm text-gray-400">دینار</span></span>
-                </div>
+      <ProductDetailModal 
+        selectedProduct={selectedProduct}
+        setSelectedProduct={setSelectedProduct}
+        addToCart={addToCart}
+        language={language}
+        t={t}
+      />
 
-                <div className="bg-[#1a1a1a] rounded-2xl p-4">
-                  <h3 className="font-bold mb-3 text-red-600">کێش هەڵبژێرە</h3>
-                  <div className="space-y-2">
-                    {selectedProduct.weights.map((w, idx) => (
-                      <button
-                        key={idx}
-                        className="w-full flex items-center justify-between p-3 rounded-xl border border-white/10 hover:border-red-600 transition-all"
-                        onClick={() => {
-                          addToCart(selectedProduct, idx, 1);
-                          setSelectedProduct(null);
-                        }}
-                      >
-                        <span>{w.w} {t('gram')}</span>
-                        <span className="font-bold">{w.p.toLocaleString()} {t('dinar')}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <LiveSupport language={language} t={t} />
+      <BackToTop />
 
-      {/* Cart Modal */}
-      <AnimatePresence>
-        {showCart && (
-          <motion.div 
-            initial={{ x: language === 'en' || language === 'tr' ? '100%' : '-100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: language === 'en' || language === 'tr' ? '100%' : '-100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed inset-0 z-[60] bg-[#0f0f0f] flex flex-col"
-            dir={language === 'en' || language === 'tr' ? 'ltr' : 'rtl'}
-          >
-            <div className="flex items-center justify-between p-4 border-b border-white/10">
-              <button onClick={() => setShowCart(false)} className="p-2 hover:bg-white/10 rounded-full">
-                {language === 'en' || language === 'tr' ? <ChevronLeft size={24} /> : <ChevronRight size={24} />}
-              </button>
-              <h2 className="font-bold text-lg">{t('cart')}</h2>
-              <button onClick={() => setCart([])} className="text-red-600 text-sm font-medium">{t('clear')}</button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {cart.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                  <ShoppingCart size={64} />
-                  <p className="mt-4">{t('emptyCart')}</p>
-                </div>
-              ) : (
-                cart.map((item) => (
-                  <div key={item.cartId} className="bg-[#1a1a1a] rounded-2xl p-4 flex gap-3">
-                    <img src={item.image} alt={item.name} className="w-20 h-20 rounded-xl object-cover" />
-                    <div className="flex-1">
-                      <h3 className="font-medium text-sm mb-1 line-clamp-2">{item.name}</h3>
-                      <p className="text-xs text-gray-400 mb-2">{item.weights[item.selectedWeight].w} {t('gram')}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-red-600 font-bold">{item.finalPrice.toLocaleString()} {t('dinar')}</span>
-                        <div className="flex items-center gap-2 bg-[#262626] rounded-lg px-2 py-1">
-                          <button onClick={() => updateQuantity(item.cartId, item.quantity - 1)} className="text-red-600"><Minus size={16} /></button>
-                          <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.cartId, item.quantity + 1)} className="text-red-600"><Plus size={16} /></button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {cart.length > 0 && (
-              <div className="p-4 border-t border-white/10 bg-[#1a1a1a] space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">{t('total')}</span>
-                  <span>{cartTotal.toLocaleString()} {t('dinar')}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">{t('delivery')}</span>
-                  <span className={deliveryFee === 0 ? 'text-green-500' : ''}>
-                    {deliveryFee === 0 ? t('free') : deliveryFee.toLocaleString() + ' ' + t('dinar')}
-                  </span>
-                </div>
-                <div className="flex justify-between text-lg font-bold pt-2 border-t border-white/10">
-                  <span>{t('finalTotal')}</span>
-                  <span className="text-red-600">{(cartTotal + deliveryFee).toLocaleString()} {t('dinar')}</span>
-                </div>
-                <button 
-                  onClick={handleCheckout}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors"
-                >
-                  {t('checkout')}
-                </button>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Cart 
+        showCart={showCart}
+        setShowCart={setShowCart}
+        cart={cart}
+        setCart={setCart}
+        updateQuantity={updateQuantity}
+        cartTotal={cartTotal}
+        deliveryFee={deliveryFee}
+        discountAmount={discountAmount}
+        finalTotal={finalTotal}
+        handleCheckout={handleCheckout}
+        promoCode={promoCode}
+        setPromoCode={setPromoCode}
+        validatePromoCode={validatePromoCode}
+        appliedPromo={appliedPromo}
+        isFirstOrder={isLoggedIn && userOrdersCount === 0}
+        language={language}
+        t={t}
+      />
 
       {/* Success Modal */}
       <AnimatePresence>
@@ -2235,153 +2380,23 @@ export default function App() {
 
       <Toast message={toast.message} visible={toast.show} />
 
-      {/* Reviews Modal */}
-      <AnimatePresence>
-        {showReviews && (
-          <>
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowReviews(false)}
-              className="fixed inset-0 bg-black/80 z-[100] backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] z-[101] rounded-t-[32px] max-h-[80vh] overflow-hidden flex flex-col"
-              dir={language === 'en' || language === 'tr' ? 'ltr' : 'rtl'}
-            >
-              <div className="p-6 border-b border-white/10 flex items-center justify-between">
-                <div className="flex flex-col">
-                  <h3 className="text-xl font-bold flex items-center gap-2">
-                    {t('reviews')}
-                  </h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-3xl font-black text-white">{averageRating}</span>
-                    <div className="flex flex-col">
-                      <div className="flex gap-0.5">
-                        {[...Array(5)].map((_, i) => (
-                          <Star 
-                            key={i} 
-                            size={12} 
-                            className={i < Math.round(Number(averageRating)) ? 'text-yellow-500' : 'text-gray-700'} 
-                            fill={i < Math.round(Number(averageRating)) ? 'currentColor' : 'none'}
-                          />
-                        ))}
-                      </div>
-                      <span className="text-[10px] text-gray-500">لە کۆی ٥.٠</span>
-                    </div>
-                  </div>
-                </div>
-                <button onClick={() => setShowReviews(false)} className="p-2 hover:bg-white/10 rounded-full">
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {reviews.length === 0 ? (
-                  <div className="text-center py-10 text-gray-500">
-                    <MessageSquare size={48} className="mx-auto mb-4 opacity-20" />
-                    <p>{t('noReviews')}</p>
-                  </div>
-                ) : (
-                  reviews.map(review => (
-                    <div key={review.id} className="bg-white/5 p-4 rounded-2xl space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex gap-1">
-                          {[...Array(5)].map((_, i) => (
-                            <Star 
-                              key={i} 
-                              size={14} 
-                              className={i < review.rating ? 'text-yellow-500' : 'text-gray-600'} 
-                              fill={i < review.rating ? 'currentColor' : 'none'}
-                            />
-                          ))}
-                        </div>
-                        <span className="text-[10px] text-gray-500">
-                          {new Date(review.date).toLocaleDateString(language === 'en' ? 'en-US' : language === 'tr' ? 'tr-TR' : 'ar-IQ')}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-300 leading-relaxed">{review.comment}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      <ReviewsModal 
+        showReviews={showReviews}
+        setShowReviews={setShowReviews}
+        reviews={reviews}
+        averageRating={averageRating}
+        language={language}
+        t={t}
+      />
 
-      {/* Review Form Modal */}
-      <AnimatePresence>
-        {showReviewForm && (
-          <>
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowReviewForm(false)}
-              className="fixed inset-0 bg-black/80 z-[110] backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md bg-[#1a1a1a] z-[111] rounded-[32px] p-8 shadow-2xl border border-white/10"
-              dir={language === 'en' || language === 'tr' ? 'ltr' : 'rtl'}
-            >
-              <h3 className="text-2xl font-bold mb-6 text-center">{t('addReview')}</h3>
-              
-              <form onSubmit={handleSubmitReview} className="space-y-6">
-                <div className="flex justify-center gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setNewReview({ ...newReview, rating: star })}
-                      className="p-1 transition-transform active:scale-90"
-                    >
-                      <Star 
-                        size={32} 
-                        className={star <= newReview.rating ? 'text-yellow-500' : 'text-gray-600'} 
-                        fill={star <= newReview.rating ? 'currentColor' : 'none'}
-                      />
-                    </button>
-                  ))}
-                </div>
-                
-                <div>
-                  <textarea
-                    required
-                    value={newReview.comment}
-                    onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
-                    placeholder={t('addReview')}
-                    className="w-full bg-[#262626] border border-white/10 rounded-2xl p-4 min-h-[120px] outline-none focus:ring-2 focus:ring-red-600 transition-all text-sm"
-                  />
-                </div>
-                
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowReviewForm(false)}
-                    className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-2xl transition-colors"
-                  >
-                    {t('back')}
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-red-600/20"
-                  >
-                    {t('send')}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      <ReviewFormModal 
+        showReviewForm={showReviewForm}
+        setShowReviewForm={setShowReviewForm}
+        newReview={newReview}
+        setNewReview={setNewReview}
+        handleSubmitReview={handleSubmitReview}
+        t={t}
+      />
     </div>
   );
 }
