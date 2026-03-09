@@ -7,6 +7,7 @@ import multer from "multer";
 import fs from "fs";
 import twilio from "twilio";
 import dotenv from "dotenv";
+import helmet from "helmet";
 import db from "./db.js";
 
 dotenv.config();
@@ -74,6 +75,15 @@ const getTwilioClient = () => {
 
 export const app = express();
 const PORT = 3000;
+
+// Cloudflare & Proxy readiness
+app.set('trust proxy', true);
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for now as it might block Vite's HMR or external assets
+  crossOriginEmbedderPolicy: false
+}));
 
 // Multer config
 const storage = multer.memoryStorage();
@@ -315,8 +325,13 @@ async function startServer() {
     const { id, name, name_ar, name_en, name_tr, icon } = req.body;
     try {
       if (isSupabaseHealthy) {
-        const { error } = await supabase.from("categories").insert({ id, name, name_ar, name_en, name_tr, icon });
-        if (!error) return res.json({ success: true });
+        try {
+          const { error } = await supabase.from("categories").insert({ id, name, name_ar, name_en, name_tr, icon });
+          if (!error) return res.json({ success: true });
+          console.warn("Supabase category insert error, falling back to SQLite:", error.message);
+        } catch (supaError: any) {
+          console.warn("Supabase category insert exception, falling back to SQLite:", supaError.message);
+        }
       }
       
       db.prepare("INSERT OR REPLACE INTO categories (id, name, name_ar, name_en, name_tr, icon) VALUES (?, ?, ?, ?, ?, ?)")
@@ -332,8 +347,13 @@ async function startServer() {
     const { name, name_ar, name_en, name_tr, icon } = req.body;
     try {
       if (isSupabaseHealthy) {
-        const { error } = await supabase.from("categories").update({ name, name_ar, name_en, name_tr, icon }).eq("id", id);
-        if (!error) return res.json({ success: true });
+        try {
+          const { error } = await supabase.from("categories").update({ name, name_ar, name_en, name_tr, icon }).eq("id", id);
+          if (!error) return res.json({ success: true });
+          console.warn("Supabase category update error, falling back to SQLite:", error.message);
+        } catch (supaError: any) {
+          console.warn("Supabase category update exception, falling back to SQLite:", supaError.message);
+        }
       }
       
       db.prepare("UPDATE categories SET name = ?, name_ar = ?, name_en = ?, name_tr = ?, icon = ? WHERE id = ?")
@@ -348,9 +368,13 @@ async function startServer() {
     const { id } = req.params;
     try {
       if (isSupabaseHealthy) {
-        await supabase.from("products").delete().eq("category_id", id);
-        await supabase.from("categories").delete().eq("id", id);
-        return res.json({ success: true });
+        try {
+          await supabase.from("products").delete().eq("category_id", id);
+          await supabase.from("categories").delete().eq("id", id);
+          return res.json({ success: true });
+        } catch (supaError: any) {
+          console.warn("Supabase category delete exception, falling back to SQLite:", supaError.message);
+        }
       }
       
       db.prepare("DELETE FROM products WHERE category_id = ?").run(id);
@@ -412,25 +436,30 @@ async function startServer() {
     
     try {
       if (isSupabaseHealthy) {
-        const { data, error } = await supabase
-          .from("products")
-          .insert({
-            category_id,
-            name,
-            name_ar,
-            name_en,
-            name_tr,
-            price,
-            old_price: old_price || null,
-            discount: discount || null,
-            image,
-            weights: JSON.stringify(weights),
-            is_limited: is_limited ? 1 : 0
-          })
-          .select()
-          .single();
-        
-        if (!error) return res.json({ id: data.id, success: true });
+        try {
+          const { data, error } = await supabase
+            .from("products")
+            .insert({
+              category_id,
+              name,
+              name_ar,
+              name_en,
+              name_tr,
+              price,
+              old_price: old_price || null,
+              discount: discount || null,
+              image,
+              weights: JSON.stringify(weights),
+              is_limited: is_limited ? 1 : 0
+            })
+            .select()
+            .single();
+          
+          if (!error) return res.json({ id: data.id, success: true });
+          console.warn("Supabase insert error, falling back to SQLite:", error.message);
+        } catch (supaError: any) {
+          console.warn("Supabase insert exception, falling back to SQLite:", supaError.message);
+        }
       }
       
       const result = db.prepare(`
@@ -440,6 +469,7 @@ async function startServer() {
       
       res.json({ id: result.lastInsertRowid, success: true });
     } catch (error: any) {
+      console.error("Product creation failed:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -450,24 +480,29 @@ async function startServer() {
     
     try {
       if (isSupabaseHealthy) {
-        const { error } = await supabase
-          .from("products")
-          .update({
-            category_id,
-            name,
-            name_ar,
-            name_en,
-            name_tr,
-            price,
-            old_price: old_price || null,
-            discount: discount || null,
-            image,
-            weights: JSON.stringify(weights),
-            is_limited: is_limited ? 1 : 0
-          })
-          .eq("id", id);
-        
-        if (!error) return res.json({ success: true });
+        try {
+          const { error } = await supabase
+            .from("products")
+            .update({
+              category_id,
+              name,
+              name_ar,
+              name_en,
+              name_tr,
+              price,
+              old_price: old_price || null,
+              discount: discount || null,
+              image,
+              weights: JSON.stringify(weights),
+              is_limited: is_limited ? 1 : 0
+            })
+            .eq("id", id);
+          
+          if (!error) return res.json({ success: true });
+          console.warn("Supabase update error, falling back to SQLite:", error.message);
+        } catch (supaError: any) {
+          console.warn("Supabase update exception, falling back to SQLite:", supaError.message);
+        }
       }
       
       db.prepare(`
@@ -488,8 +523,13 @@ async function startServer() {
     const { id } = req.params;
     try {
       if (isSupabaseHealthy) {
-        const { error } = await supabase.from("products").delete().eq("id", id);
-        if (!error) return res.json({ success: true });
+        try {
+          const { error } = await supabase.from("products").delete().eq("id", id);
+          if (!error) return res.json({ success: true });
+          console.warn("Supabase delete error, falling back to SQLite:", error.message);
+        } catch (supaError: any) {
+          console.warn("Supabase delete exception, falling back to SQLite:", supaError.message);
+        }
       }
       
       db.prepare("DELETE FROM products WHERE id = ?").run(id);
@@ -528,8 +568,13 @@ async function startServer() {
     const { key, value } = req.body;
     try {
       if (isSupabaseHealthy) {
-        const { error } = await supabase.from("settings").upsert({ key, value });
-        if (!error) return res.json({ success: true });
+        try {
+          const { error } = await supabase.from("settings").upsert({ key, value });
+          if (!error) return res.json({ success: true });
+          console.warn("Supabase settings upsert error, falling back to SQLite:", error.message);
+        } catch (supaError: any) {
+          console.warn("Supabase settings upsert exception, falling back to SQLite:", supaError.message);
+        }
       }
       
       db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
@@ -559,8 +604,13 @@ async function startServer() {
     const { title, title_ar, title_en, title_tr, image } = req.body;
     try {
       if (isSupabaseHealthy) {
-        const { error } = await supabase.from("promotions").update({ title, title_ar, title_en, title_tr, image }).eq("id", id);
-        if (!error) return res.json({ success: true });
+        try {
+          const { error } = await supabase.from("promotions").update({ title, title_ar, title_en, title_tr, image }).eq("id", id);
+          if (!error) return res.json({ success: true });
+          console.warn("Supabase promotion update error, falling back to SQLite:", error.message);
+        } catch (supaError: any) {
+          console.warn("Supabase promotion update exception, falling back to SQLite:", supaError.message);
+        }
       }
       
       db.prepare("UPDATE promotions SET title = ?, title_ar = ?, title_en = ?, title_tr = ?, image = ? WHERE id = ?")
@@ -589,28 +639,47 @@ async function startServer() {
 
   app.get("/api/orders", async (req, res) => {
     try {
-      const { data: orders, error } = await supabase
-        .from("orders")
-        .select(`
-          *,
-          users (
-            username,
-            full_name,
-            phone,
-            address
-          )
-        `)
-        .order("id", { ascending: false });
+      if (isSupabaseHealthy) {
+        try {
+          const { data: orders, error } = await supabase
+            .from("orders")
+            .select(`
+              *,
+              users (
+                username,
+                full_name,
+                phone,
+                address
+              )
+            `)
+            .order("id", { ascending: false });
 
-      if (error) throw error;
+          if (!error) {
+            return res.json((orders || []).map((o: any) => ({ 
+              ...o, 
+              items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
+              username: o.users?.username,
+              full_name: o.users?.full_name,
+              phone: o.users?.phone,
+              address: o.users?.address
+            })));
+          }
+          console.warn("Supabase get orders error, falling back to SQLite:", error.message);
+        } catch (supaError: any) {
+          console.warn("Supabase get orders exception, falling back to SQLite:", supaError.message);
+        }
+      }
+
+      const orders = db.prepare(`
+        SELECT o.*, u.username, u.full_name, u.phone, u.address 
+        FROM orders o 
+        LEFT JOIN users u ON o.user_id = u.id 
+        ORDER BY o.id DESC
+      `).all() as any[];
       
-      res.json((orders || []).map((o: any) => ({ 
-        ...o, 
-        items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
-        username: o.users?.username,
-        full_name: o.users?.full_name,
-        phone: o.users?.phone,
-        address: o.users?.address
+      res.json(orders.map((o: any) => ({
+        ...o,
+        items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items
       })));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -621,24 +690,37 @@ async function startServer() {
     const { user_id, items, total_price, delivery_fee, discount_applied, promo_code, location_url } = req.body;
     const date = new Date().toISOString();
     try {
-      const { data, error } = await supabase
-        .from("orders")
-        .insert({
-          user_id,
-          items: JSON.stringify(items),
-          total_price,
-          delivery_fee,
-          discount_applied: discount_applied || 0,
-          promo_code: promo_code || null,
-          status: 'pending',
-          date,
-          location_url
-        })
-        .select()
-        .single();
+      if (isSupabaseHealthy) {
+        try {
+          const { data, error } = await supabase
+            .from("orders")
+            .insert({
+              user_id,
+              items: JSON.stringify(items),
+              total_price,
+              delivery_fee,
+              discount_applied: discount_applied || 0,
+              promo_code: promo_code || null,
+              status: 'pending',
+              date,
+              location_url
+            })
+            .select()
+            .single();
 
-      if (error) throw error;
-      res.json({ success: true, orderId: data.id });
+          if (!error) return res.json({ success: true, orderId: data.id });
+          console.warn("Supabase order insert error, falling back to SQLite:", error.message);
+        } catch (supaError: any) {
+          console.warn("Supabase order insert exception, falling back to SQLite:", supaError.message);
+        }
+      }
+
+      const result = db.prepare(`
+        INSERT INTO orders (user_id, items, total_price, delivery_fee, discount_applied, promo_code, status, date, location_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(user_id, items ? JSON.stringify(items) : '[]', total_price, delivery_fee, discount_applied || 0, promo_code || null, 'pending', date, location_url);
+      
+      res.json({ success: true, orderId: result.lastInsertRowid });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -648,7 +730,17 @@ async function startServer() {
     const { id } = req.params;
     const { status } = req.body;
     try {
-      await supabase.from("orders").update({ status }).eq("id", id);
+      if (isSupabaseHealthy) {
+        try {
+          const { error } = await supabase.from("orders").update({ status }).eq("id", id);
+          if (!error) return res.json({ success: true });
+          console.warn("Supabase order status update error, falling back to SQLite:", error.message);
+        } catch (supaError: any) {
+          console.warn("Supabase order status update exception, falling back to SQLite:", supaError.message);
+        }
+      }
+      
+      db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, id);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
