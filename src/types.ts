@@ -52,7 +52,6 @@ export interface User {
   address: string;
   role: string;
   is_admin?: number;
-  is_super_admin?: number;
 }
 
 export interface Review {
@@ -60,4 +59,13 @@ export interface Review {
   rating: number;
   comment: string;
   date: string;
+}
+
+declare global {
+  interface Window {
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
 }

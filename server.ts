@@ -19,7 +19,12 @@ const __dirname = path.dirname(__filename);
 // Supabase Client Initialization
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
-const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Initialize with dummy values if missing to prevent crash, but check health before use
+const supabase = createClient(
+  supabaseUrl || "https://placeholder.supabase.co", 
+  supabaseKey || "placeholder"
+);
 
 // Global state for Supabase health
 let isSupabaseHealthy = false;
@@ -153,7 +158,10 @@ async function startServer() {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
 
-  isSupabaseHealthy = await checkSupabaseHealth();
+  // Run health check in background
+  checkSupabaseHealth().then(healthy => {
+    isSupabaseHealthy = healthy;
+  });
   
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -957,11 +965,9 @@ async function startServer() {
     });
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  }
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
 }
 
 startServer();

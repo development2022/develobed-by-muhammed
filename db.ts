@@ -23,7 +23,16 @@ db.exec(`
     verification_code TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+`);
 
+// Add missing columns if they don't exist (for existing databases)
+try {
+  db.exec("ALTER TABLE users ADD COLUMN is_super_admin INTEGER DEFAULT 0");
+} catch (e) {
+  // Column probably already exists
+}
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS categories (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

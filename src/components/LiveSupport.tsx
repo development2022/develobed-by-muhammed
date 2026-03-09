@@ -3,8 +3,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MessageCircle, X, Send, Bot, User, Loader2 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-
 interface Message {
   id: string;
   text: string;
@@ -43,6 +41,19 @@ export const LiveSupport: React.FC<LiveSupportProps> = ({ language, t }) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error("Gemini API key is missing");
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        text: "API key is not configured. Please check your settings.",
+        sender: 'bot',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      return;
+    }
+
     const userMessage: Message = {
       id: Date.now().toString(),
       text: input,
@@ -55,6 +66,7 @@ export const LiveSupport: React.FC<LiveSupportProps> = ({ language, t }) => {
     setIsLoading(true);
 
     try {
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: `You are a customer support assistant for "Sherdll Nuts" (چەرەزاتی شێردڵ), a premium nut and snack store in Kurdistan. 

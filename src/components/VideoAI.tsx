@@ -34,11 +34,17 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t }) => {
   const analyzeVideo = async () => {
     if (!videoFile) return;
 
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      setError("Gemini API key is not configured. Please check your settings.");
+      return;
+    }
+
     setIsAnalyzing(true);
     setError(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey });
       
       // Convert file to base64
       const reader = new FileReader();
