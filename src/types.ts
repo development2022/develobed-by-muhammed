@@ -52,6 +52,7 @@ export interface User {
   address: string;
   role: string;
   is_admin?: number;
+  is_super_admin?: number;
 }
 
 export interface Review {

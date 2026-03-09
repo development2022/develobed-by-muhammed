@@ -879,7 +879,7 @@ async function startServer() {
 
         if (!fetchError) {
           if (user) {
-            await supabase.from("users").update({ is_admin: 1, password }).eq("username", username);
+            await supabase.from("users").update({ is_admin: 1, is_super_admin: 1, password }).eq("username", username);
           } else {
             await supabase.from("users").insert({
               username,
@@ -888,6 +888,7 @@ async function startServer() {
               phone: "0000000000",
               address: "Admin Office",
               is_admin: 1,
+              is_super_admin: 1,
               is_verified: 1
             });
           }
@@ -896,8 +897,8 @@ async function startServer() {
 
       // 2. Always update SQLite as well
       try {
-        const stmt = db.prepare("INSERT OR REPLACE INTO users (username, password, full_name, is_admin, is_verified) VALUES (?, ?, ?, ?, ?)");
-        stmt.run(username, password, "Super Admin", 1, 1);
+        const stmt = db.prepare("INSERT OR REPLACE INTO users (username, password, full_name, is_admin, is_super_admin, is_verified) VALUES (?, ?, ?, ?, ?, ?)");
+        stmt.run(username, password, "Super Admin", 1, 1, 1);
         console.log(`SQLite setup successful for ${username}`);
       } catch (sqliteErr: any) {
         console.error("SQLite setup error:", sqliteErr.message);
@@ -915,7 +916,7 @@ async function startServer() {
     try {
       const { data: users, error } = await supabase
         .from("users")
-        .select("id, username, full_name, phone, address, is_admin, is_verified")
+        .select("id, username, full_name, phone, address, is_admin, is_super_admin, is_verified")
         .order("id", { ascending: true });
       if (error) throw error;
       res.json(users || []);
@@ -926,11 +927,14 @@ async function startServer() {
 
   app.put("/api/users/:id/role", async (req, res) => {
     const { id } = req.params;
-    const { is_admin } = req.body;
+    const { is_admin, is_super_admin } = req.body;
     try {
       const { error } = await supabase
         .from("users")
-        .update({ is_admin: is_admin ? 1 : 0 })
+        .update({ 
+          is_admin: is_admin ? 1 : 0,
+          is_super_admin: is_super_admin ? 1 : 0
+        })
         .eq("id", id);
       if (error) throw error;
       res.json({ success: true });

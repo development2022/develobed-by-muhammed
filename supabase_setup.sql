@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     phone TEXT UNIQUE,
     address TEXT,
     is_admin INTEGER DEFAULT 0,
+    is_super_admin INTEGER DEFAULT 0,
     is_verified INTEGER DEFAULT 0,
     verification_code TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -93,6 +94,6 @@ CREATE TABLE IF NOT EXISTS public.polls (
 );
 
 -- 9. Insert default admin
-INSERT INTO public.users (username, password, full_name, phone, is_admin, is_verified)
-VALUES ('admin@admin.com', 'admin', 'Super Admin', '0000000000', 1, 1)
+INSERT INTO public.users (username, password, full_name, phone, is_admin, is_super_admin, is_verified)
+VALUES ('admin@admin.com', 'admin', 'Super Admin', '0000000000', 1, 1, 1)
 ON CONFLICT (username) DO NOTHING;

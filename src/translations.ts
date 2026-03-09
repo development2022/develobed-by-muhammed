@@ -117,7 +117,12 @@ export const translations = {
     marketingHighlights: "خاڵە گرنگەکانی بازاڕکردن",
     question: "پرسیار",
     answer: "وەڵام",
-    analysisError: "هەڵەیەک لە شیکردنەوەی ڤیدیۆکە ڕوویدا"
+    analysisError: "هەڵەیەک لە شیکردنەوەی ڤیدیۆکە ڕوویدا",
+    manageUsers: "بەڕێوەبردنی بەکارهێنەران",
+    superAdmin: "سوپەر ئەدمین",
+    actions: "کردارەکان",
+    yes: "بەڵێ",
+    no: "نەخێر"
   },
   ar: {
     all: "الكل",
@@ -234,7 +239,12 @@ export const translations = {
     marketingHighlights: "أبرز النقاط التسويقية",
     question: "سؤال",
     answer: "جواب",
-    analysisError: "حدث خطأ أثناء تحليل الفيديو"
+    analysisError: "حدث خطأ أثناء تحليل الفيديو",
+    manageUsers: "إدارة المستخدمين",
+    superAdmin: "مسؤول خارق",
+    actions: "إجراءات",
+    yes: "نعم",
+    no: "لا"
   },
   en: {
     all: "All",
@@ -351,7 +361,12 @@ export const translations = {
     marketingHighlights: "Marketing Highlights",
     question: "Question",
     answer: "Answer",
-    analysisError: "An error occurred while analyzing the video"
+    analysisError: "An error occurred while analyzing the video",
+    manageUsers: "Manage Users",
+    superAdmin: "Super Admin",
+    actions: "Actions",
+    yes: "Yes",
+    no: "No"
   },
   tr: {
     all: "Hepsi",
@@ -468,6 +483,11 @@ export const translations = {
     marketingHighlights: "Pazarlama Vurguları",
     question: "Soru",
     answer: "Cevap",
-    analysisError: "Video analiz edilirken bir hata oluştu"
+    analysisError: "Video analiz edilirken bir hata oluştu",
+    manageUsers: "Kullanıcıları Yönet",
+    superAdmin: "Süper Yönetici",
+    actions: "İşlemler",
+    yes: "Evet",
+    no: "Hayır"
   }
 };

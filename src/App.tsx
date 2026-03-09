@@ -93,7 +93,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState({ show: false, message: '' });
   const [currentView, setCurrentView] = useState<'home' | 'admin' | 'login' | 'profile' | 'register' | 'admin_login' | 'video_ai'>('home');
-  const [adminTab, setAdminTab] = useState<'items' | 'manage_cats' | 'new_cat' | 'settings' | 'promotions' | 'delivery' | 'orders'>('items');
+  const [adminTab, setAdminTab] = useState<'items' | 'manage_cats' | 'new_cat' | 'settings' | 'promotions' | 'delivery' | 'orders' | 'users'>('items');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
   const [registerData, setRegisterData] = useState({ username: '', password: '', full_name: '', phone: '', address: '' });
@@ -112,6 +112,7 @@ export default function App() {
   const [appliedPromo, setAppliedPromo] = useState<{ code: string, discount: number } | null>(null);
   const [userOrdersCount, setUserOrdersCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [users, setUsers] = useState<UserType[]>([]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -309,6 +310,33 @@ export default function App() {
         if (data.delivery_fee) setDeliveryFeeVal(parseInt(data.delivery_fee));
         if (data.free_delivery_threshold) setFreeThreshold(parseInt(data.free_delivery_threshold));
       });
+  };
+
+  const fetchUsers = () => {
+    fetch('/api/users')
+      .then(res => res.json())
+      .then(data => setUsers(data))
+      .catch(err => console.error("Error fetching users:", err));
+  };
+
+  const toggleUserRole = async (userId: number, roleType: 'admin' | 'super', value: boolean) => {
+    try {
+      const body: any = {};
+      if (roleType === 'admin') body.is_admin = value;
+      if (roleType === 'super') body.is_super_admin = value;
+
+      const res = await fetch(`/api/users/${userId}/role`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        fetchUsers();
+        setToast({ show: true, message: t('productUpdateSuccess') });
+      }
+    } catch (err) {
+      console.error("Error updating user role:", err);
+    }
   };
 
   const fetchProducts = (all = false) => {
@@ -1453,14 +1481,16 @@ export default function App() {
                   { id: 'promotions', label: t('promotions'), icon: <Gift size={20} /> },
                   { id: 'delivery', label: t('deliverySettings'), icon: <MapPin size={20} /> },
                   { id: 'orders', label: t('orders'), icon: <ShoppingBag size={20} /> },
+                  { id: 'users', label: t('manageUsers'), icon: <User size={20} />, superOnly: true },
                   { id: 'settings', label: t('settings'), icon: <Grid size={20} /> }
-                ].map(tab => (
+                ].filter(tab => !tab.superOnly || currentUser?.is_super_admin).map(tab => (
                   <button
                     key={tab.id}
                     onClick={() => {
                       setAdminTab(tab.id as any);
                       if (tab.id === 'manage_products') fetchProducts(true);
                       if (tab.id === 'orders') fetchOrders();
+                      if (tab.id === 'users') fetchUsers();
                     }}
                     className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all ${adminTab === tab.id ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-[#1a1a1a] text-gray-400 hover:bg-[#262626]'}`}
                   >
@@ -1491,14 +1521,16 @@ export default function App() {
                     { id: 'promotions', label: t('promotions') },
                     { id: 'delivery', label: t('deliverySettings') },
                     { id: 'orders', label: t('orders') },
+                    { id: 'users', label: t('manageUsers'), superOnly: true },
                     { id: 'settings', label: t('settings') }
-                  ].map(tab => (
+                  ].filter(tab => !tab.superOnly || currentUser?.is_super_admin).map(tab => (
                     <button
                       key={tab.id}
                       onClick={() => {
                         setAdminTab(tab.id as any);
                         if (tab.id === 'manage_products') fetchProducts(true);
                         if (tab.id === 'orders') fetchOrders();
+                        if (tab.id === 'users') fetchUsers();
                       }}
                       className={`flex-shrink-0 px-6 py-3 rounded-2xl font-bold transition-all ${adminTab === tab.id ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-[#1a1a1a] text-gray-400'}`}
                     >
@@ -1923,6 +1955,62 @@ export default function App() {
                   زیادکردنی هاوپۆل
                 </button>
               </form>
+            )}
+
+            {adminTab === 'users' && currentUser?.is_super_admin && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold">{t('manageUsers')}</h2>
+                </div>
+                <div className="bg-[#1a1a1a] rounded-3xl overflow-hidden border border-white/5">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-right" dir="rtl">
+                      <thead className="bg-[#262626] text-gray-400 text-sm">
+                        <tr>
+                          <th className="p-4 font-bold">ID</th>
+                          <th className="p-4 font-bold">{t('username')}</th>
+                          <th className="p-4 font-bold">{t('fullName')}</th>
+                          <th className="p-4 font-bold">{t('phone')}</th>
+                          <th className="p-4 font-bold">{t('admin')}</th>
+                          <th className="p-4 font-bold">{t('superAdmin')}</th>
+                          <th className="p-4 font-bold">{t('actions')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {users.map((user: any) => (
+                          <tr key={user.id} className="hover:bg-white/5 transition-colors">
+                            <td className="p-4 text-gray-400">#{user.id}</td>
+                            <td className="p-4 font-bold">{user.username}</td>
+                            <td className="p-4 text-gray-300">{user.full_name}</td>
+                            <td className="p-4 text-gray-300">{user.phone}</td>
+                            <td className="p-4">
+                              <button 
+                                onClick={() => toggleUserRole(user.id, 'admin', !user.is_admin)}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold ${user.is_admin ? 'bg-green-600/20 text-green-500' : 'bg-gray-600/20 text-gray-500'}`}
+                              >
+                                {user.is_admin ? t('yes') : t('no')}
+                              </button>
+                            </td>
+                            <td className="p-4">
+                              <button 
+                                onClick={() => toggleUserRole(user.id, 'super', !user.is_super_admin)}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold ${user.is_super_admin ? 'bg-purple-600/20 text-purple-500' : 'bg-gray-600/20 text-gray-500'}`}
+                              >
+                                {user.is_super_admin ? t('yes') : t('no')}
+                              </button>
+                            </td>
+                            <td className="p-4">
+                              <button className="p-2 hover:bg-red-600/20 text-red-500 rounded-xl transition-colors">
+                                <Trash2 size={18} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
             )}
 
             {adminTab === 'settings' && (
