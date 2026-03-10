@@ -67,7 +67,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <Menu size={24} />
               </button>
               <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center overflow-hidden">
+                <div className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center overflow-hidden">
                   {appLogo ? (
                     <img src={appLogo} alt="Logo" className="w-full h-full object-cover" />
                   ) : (
@@ -105,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <ShoppingCart size={24} />
                 {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-600 text-white text-xs rounded-full flex items-center justify-center font-bold">
                     {cartCount}
                   </span>
                 )}
@@ -114,7 +114,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => setCurrentView(isLoggedIn ? 'profile' : 'login')}
                 className="p-2 hover:bg-white/10 rounded-full transition-colors flex items-center gap-2"
               >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isLoggedIn ? 'bg-red-600' : 'bg-white/10'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isLoggedIn ? 'bg-emerald-600' : 'bg-white/10'}`}>
                   <User size={18} className="text-white" />
                 </div>
                 {isLoggedIn ? (
@@ -130,7 +130,7 @@ export const Header: React.FC<HeaderProps> = ({
               {!isLoggedIn && (
                 <button 
                   onClick={() => setCurrentView('register')}
-                  className="hidden lg:flex px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all uppercase tracking-wider shadow-lg shadow-red-600/20"
+                  className="hidden lg:flex px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all uppercase tracking-wider shadow-lg shadow-emerald-600/20"
                 >
                   {t('register')}
                 </button>

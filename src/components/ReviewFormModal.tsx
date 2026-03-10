@@ -62,7 +62,7 @@ export const ReviewFormModal: React.FC<ReviewFormModalProps> = ({
                   value={newReview.comment}
                   onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
                   placeholder={t('addReview')}
-                  className="w-full bg-[#262626] border border-white/10 rounded-2xl p-4 min-h-[120px] outline-none focus:ring-2 focus:ring-red-600 transition-all text-sm"
+                  className="w-full bg-[#262626] border border-white/10 rounded-2xl p-4 min-h-[120px] outline-none focus:ring-2 focus:ring-emerald-600 transition-all text-sm"
                 />
               </div>
               
@@ -76,7 +76,7 @@ export const ReviewFormModal: React.FC<ReviewFormModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-red-600/20"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-emerald-600/20"
                 >
                   {t('send')}
                 </button>

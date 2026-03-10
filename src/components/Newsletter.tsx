@@ -20,7 +20,7 @@ export const Newsletter: React.FC<NewsletterProps> = ({ t }) => {
 
   return (
     <div className="mt-20 mb-10 px-4">
-      <div className="bg-red-600 rounded-[40px] p-8 md:p-12 relative overflow-hidden">
+      <div className="bg-emerald-600 rounded-[40px] p-8 md:p-12 relative overflow-hidden">
         {/* Decorative Circles */}
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-black/10 rounded-full blur-3xl" />
@@ -60,7 +60,7 @@ export const Newsletter: React.FC<NewsletterProps> = ({ t }) => {
                 </div>
                 <button
                   type="submit"
-                  className="bg-white text-red-600 font-bold px-8 py-4 rounded-2xl hover:bg-gray-100 transition-colors shadow-xl"
+                  className="bg-white text-emerald-600 font-bold px-8 py-4 rounded-2xl hover:bg-gray-100 transition-colors shadow-xl"
                 >
                   {t('subscribe')}
                 </button>

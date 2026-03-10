@@ -89,7 +89,7 @@ export const PromoSlider: React.FC<PromoSliderProps> = ({ promotions, getName })
             className="absolute bottom-8 left-8 right-8 text-white"
           >
             <div className="flex items-center gap-2 mb-2">
-              <span className="bg-red-600 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded">Special Offer</span>
+              <span className="bg-emerald-600 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded">Special Offer</span>
             </div>
             <h3 className="text-2xl md:text-4xl font-black tracking-tighter leading-none mb-2 drop-shadow-lg">
               {getName(promotions[current])}
@@ -128,7 +128,7 @@ export const PromoSlider: React.FC<PromoSliderProps> = ({ promotions, getName })
               setDirection(idx > current ? 1 : -1);
               setCurrent(idx);
             }}
-            className={`h-1.5 rounded-full transition-all duration-300 ${current === idx ? 'bg-red-600 w-8' : 'bg-white/30 w-2'}`}
+            className={`h-1.5 rounded-full transition-all duration-300 ${current === idx ? 'bg-emerald-600 w-8' : 'bg-white/30 w-2'}`}
           />
         ))}
       </div>

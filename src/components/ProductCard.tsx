@@ -24,11 +24,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       whileHover={{ y: -5 }}
-      className="bg-[#1a1a1a] rounded-[32px] overflow-hidden relative group border border-white/5 hover:border-red-600/30 transition-all duration-300 shadow-xl hover:shadow-red-600/10"
+      className="bg-[#1a1a1a] rounded-[32px] overflow-hidden relative group border border-white/5 hover:border-emerald-600/30 transition-all duration-300 shadow-xl hover:shadow-emerald-600/10"
       onClick={() => setSelectedProduct(product)}
     >
       {product.discount && (
-        <div className="absolute top-4 left-4 bg-red-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-full z-10 flex items-center gap-1 shadow-lg shadow-red-600/20">
+        <div className="absolute top-4 left-4 bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-full z-10 flex items-center gap-1 shadow-lg shadow-emerald-600/20">
           <span className="uppercase tracking-tighter">Sale</span>
           <span className="w-1 h-1 bg-white rounded-full mx-0.5 opacity-50" />
           <span>{product.discount}%</span>
@@ -45,7 +45,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={(e) => { e.stopPropagation(); addToCart(product, 0, 1); }}
-        className="absolute top-4 right-4 w-10 h-10 bg-white text-black rounded-full flex items-center justify-center shadow-2xl z-10 hover:bg-red-600 hover:text-white transition-colors"
+        className="absolute top-4 right-4 w-10 h-10 bg-white text-black rounded-full flex items-center justify-center shadow-2xl z-10 hover:bg-emerald-600 hover:text-white transition-colors"
       >
         <Plus size={22} />
       </motion.button>
@@ -61,13 +61,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       </div>
 
       <div className="p-5">
-        <h3 className="text-sm font-bold mb-3 line-clamp-2 h-10 leading-snug group-hover:text-red-600 transition-colors">{getName(product)}</h3>
+        <h3 className="text-sm font-bold mb-3 line-clamp-2 h-10 leading-snug group-hover:text-emerald-600 transition-colors">{getName(product)}</h3>
         <div className="flex items-end justify-between">
           <div className="flex flex-col">
             {product.old_price && (
               <span className="text-[10px] text-gray-500 line-through mb-0.5 opacity-60">{product.old_price.toLocaleString()}</span>
             )}
-            <span className="text-red-600 font-black text-base tracking-tight">
+            <span className="text-emerald-600 font-black text-base tracking-tight">
               {product.price.toLocaleString()} <span className="text-[10px] font-bold opacity-70 uppercase ml-0.5">{t('currency')}</span>
             </span>
           </div>

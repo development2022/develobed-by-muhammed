@@ -47,7 +47,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 </div>
               )}
               {selectedProduct.discount && (
-                <div className="absolute top-4 left-4 bg-red-600 text-white text-[10px] font-black px-4 py-2 rounded-full z-10 uppercase tracking-widest shadow-2xl">
+                <div className="absolute top-4 left-4 bg-emerald-600 text-white text-[10px] font-black px-4 py-2 rounded-full z-10 uppercase tracking-widest shadow-2xl">
                   -{selectedProduct.discount}% OFF
                 </div>
               )}
@@ -64,12 +64,12 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </div>
 
               <div className="bg-[#1a1a1a] rounded-2xl p-4">
-                <h3 className="font-bold mb-3 text-red-600">کێش هەڵبژێرە</h3>
+                <h3 className="font-bold mb-3 text-emerald-600">کێش هەڵبژێرە</h3>
                 <div className="space-y-2">
                   {selectedProduct.weights.map((w: any, idx: number) => (
                     <button
                       key={idx}
-                      className="w-full flex items-center justify-between p-3 rounded-xl border border-white/10 hover:border-red-600 transition-all"
+                      className="w-full flex items-center justify-between p-3 rounded-xl border border-white/10 hover:border-emerald-600 transition-all"
                       onClick={() => {
                         addToCart(selectedProduct, idx, 1);
                         setSelectedProduct(null);

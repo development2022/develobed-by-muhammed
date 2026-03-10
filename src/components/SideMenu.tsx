@@ -48,7 +48,7 @@ export const SideMenu: React.FC<SideMenuProps> = ({
           >
             <div className="p-6 border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center overflow-hidden">
+                <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center overflow-hidden">
                   {appLogo ? <img src={appLogo} className="w-full h-full object-cover" /> : <span className="text-white font-bold">S</span>}
                 </div>
                 <span className="font-bold text-lg">چەرەزاتی شێردڵ</span>
@@ -68,7 +68,7 @@ export const SideMenu: React.FC<SideMenuProps> = ({
               </button>
               <button 
                 onClick={() => { setCurrentView(currentUser ? 'profile' : 'login'); setShowSideMenu(false); }}
-                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-colors ${currentView === 'login' || currentView === 'profile' ? 'bg-red-600 text-white' : 'hover:bg-white/5 text-gray-300'}`}
+                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-colors ${currentView === 'login' || currentView === 'profile' ? 'bg-emerald-600 text-white' : 'hover:bg-white/5 text-gray-300'}`}
               >
                 <User size={22} />
                 <span className="font-medium">{currentUser ? t('profile') : t('login')}</span>
@@ -76,9 +76,9 @@ export const SideMenu: React.FC<SideMenuProps> = ({
               {!currentUser && (
                 <button 
                   onClick={() => { setCurrentView('register'); setShowSideMenu(false); }}
-                  className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-colors ${currentView === 'register' ? 'bg-red-600 text-white' : 'hover:bg-white/5 text-gray-300'}`}
+                  className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-colors ${currentView === 'register' ? 'bg-emerald-600 text-white' : 'hover:bg-white/5 text-gray-300'}`}
                 >
-                  <User size={22} className="text-red-600" />
+                  <User size={22} className="text-emerald-600" />
                   <span className="font-medium">{t('register')}</span>
                 </button>
               )}
@@ -91,7 +91,7 @@ export const SideMenu: React.FC<SideMenuProps> = ({
               </button>
               <button 
                 onClick={() => { setCurrentView('video_ai'); setShowSideMenu(false); }}
-                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-colors ${currentView === 'video_ai' ? 'bg-red-600 text-white' : 'hover:bg-white/5 text-gray-300'}`}
+                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-colors ${currentView === 'video_ai' ? 'bg-emerald-600 text-white' : 'hover:bg-white/5 text-gray-300'}`}
               >
                 <Video size={22} />
                 <span className="font-medium">{t('videoAiTitle')}</span>
@@ -110,7 +110,7 @@ export const SideMenu: React.FC<SideMenuProps> = ({
                       setCurrentView('admin'); 
                       setShowSideMenu(false); 
                     }}
-                    className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-colors ${currentView === 'admin' ? 'bg-red-600 text-white' : 'hover:bg-white/5 text-gray-300'}`}
+                    className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-colors ${currentView === 'admin' ? 'bg-emerald-600 text-white' : 'hover:bg-white/5 text-gray-300'}`}
                   >
                     <User size={22} />
                     <span className="font-medium">{t('admin')}</span>
@@ -132,7 +132,7 @@ export const SideMenu: React.FC<SideMenuProps> = ({
                       <button
                         key={lang.id}
                         onClick={() => setLanguage(lang.id as any)}
-                        className={`py-2 px-3 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-2 ${language === lang.id ? 'bg-red-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                        className={`py-2 px-3 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-2 ${language === lang.id ? 'bg-emerald-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
                       >
                         <span>{lang.flag}</span>
                         <span>{lang.label}</span>

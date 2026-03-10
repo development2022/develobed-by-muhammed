@@ -19,7 +19,7 @@ export const WelcomeLoader: React.FC<WelcomeLoaderProps> = ({ appLogo }) => {
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="relative"
       >
-        <div className="w-32 h-32 bg-red-600 rounded-[40px] overflow-hidden flex items-center justify-center shadow-2xl shadow-red-600/20">
+        <div className="w-32 h-32 bg-emerald-600 rounded-[40px] overflow-hidden flex items-center justify-center shadow-2xl shadow-emerald-600/20">
           {appLogo ? (
             <img src={appLogo} className="w-full h-full object-cover" />
           ) : (
@@ -31,7 +31,7 @@ export const WelcomeLoader: React.FC<WelcomeLoaderProps> = ({ appLogo }) => {
         <motion.div
           animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
           transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut" }}
-          className="absolute inset-0 border-4 border-red-600 rounded-[40px]"
+          className="absolute inset-0 border-4 border-emerald-600 rounded-[40px]"
         />
       </motion.div>
 
@@ -52,7 +52,7 @@ export const WelcomeLoader: React.FC<WelcomeLoaderProps> = ({ appLogo }) => {
               key={i}
               animate={{ y: [0, -6, 0] }}
               transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.1 }}
-              className="w-2 h-2 bg-red-600 rounded-full"
+              className="w-2 h-2 bg-emerald-600 rounded-full"
             />
           ))}
         </div>

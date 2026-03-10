@@ -48,7 +48,7 @@ export const FeaturedCategories: React.FC<FeaturedCategoriesProps> = ({
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             <div className="absolute bottom-6 left-6 right-6 text-right">
-              <span className="text-xs text-red-600 font-bold uppercase tracking-widest mb-1 block opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-xs text-emerald-600 font-bold uppercase tracking-widest mb-1 block opacity-0 group-hover:opacity-100 transition-opacity">
                 {t('explore')}
               </span>
               <h3 className="text-xl font-bold text-white">{getName(cat)}</h3>

@@ -1144,13 +1144,13 @@ export default function App() {
       />
 
       {!hasApiKey && (
-        <div className="bg-red-600/10 border-b border-red-600/20 px-4 py-2 flex items-center justify-between gap-4 sticky top-14 z-40 backdrop-blur-md">
-          <p className="text-xs text-red-600 font-medium">
+        <div className="bg-emerald-600/10 border-b border-emerald-600/20 px-4 py-2 flex items-center justify-between gap-4 sticky top-14 z-40 backdrop-blur-md">
+          <p className="text-xs text-emerald-600 font-medium">
             {language === 'en' ? 'Gemini API key is required for AI features.' : 'کۆدی Gemini API پێویستە بۆ تایبەتمەندییەکانی ژیری دەستکرد.'}
           </p>
           <button 
             onClick={handleOpenKeyDialog}
-            className="text-[10px] bg-red-600 text-white px-3 py-1 rounded-lg font-bold uppercase tracking-wider hover:bg-red-700 transition-colors shrink-0"
+            className="text-[10px] bg-emerald-600 text-white px-3 py-1 rounded-lg font-bold uppercase tracking-wider hover:bg-emerald-700 transition-colors shrink-0"
           >
             {language === 'en' ? 'Select Key' : 'هەڵبژاردنی کۆد'}
           </button>
@@ -1224,9 +1224,9 @@ export default function App() {
                         <h2 className="text-2xl font-black tracking-tighter uppercase">{t('limitedTimeOffers')}</h2>
                         <p className="text-xs text-gray-500 font-medium uppercase tracking-widest">{t('limitedTime')}</p>
                       </div>
-                      <div className="flex items-center gap-2 bg-red-600/10 px-3 py-1.5 rounded-full border border-red-600/20">
-                        <Clock size={14} className="text-red-600 animate-pulse" />
-                        <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider">Ends in: 02:45:12</span>
+                      <div className="flex items-center gap-2 bg-emerald-600/10 px-3 py-1.5 rounded-full border border-emerald-600/20">
+                        <Clock size={14} className="text-emerald-600 animate-pulse" />
+                        <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Ends in: 02:45:12</span>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1248,7 +1248,7 @@ export default function App() {
             {isSearching && (
               <div className="px-4 mt-6">
                 <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Search size={20} className="text-red-600" />
+                  <Search size={20} className="text-emerald-600" />
                   {t('searchResult')}
                 </h2>
                 {searchQuery && filteredProducts.length === 0 && (
@@ -1265,7 +1265,7 @@ export default function App() {
                       {selectedCategory && !isSearching && (
                         <button 
                           onClick={() => setSelectedCategory('')}
-                          className="p-2 bg-[#1a1a1a] rounded-full text-red-600 hover:bg-[#262626] transition-colors lg:hidden"
+                          className="p-2 bg-[#1a1a1a] rounded-full text-emerald-600 hover:bg-[#262626] transition-colors lg:hidden"
                         >
                           {language === 'en' || language === 'tr' ? <ChevronLeft size={24} /> : <ChevronRight size={24} />}
                         </button>
@@ -1326,14 +1326,14 @@ export default function App() {
             </p>
             <button 
               onClick={() => setCurrentView('login')}
-              className="w-full max-w-sm bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-red-600/20"
+              className="w-full max-w-sm bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-emerald-600/20"
             >
               {language === 'en' ? 'Login' : 'چوونەژوورەوە'}
             </button>
           </div>
         ) : currentView === 'login' ? (
           <div className="px-4 py-20 flex flex-col items-center">
-            <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mb-8">
+            <div className="w-20 h-20 bg-emerald-600 rounded-full flex items-center justify-center mb-8">
               <User size={40} color="white" />
             </div>
             <h2 className="text-2xl font-bold mb-8">{language === 'en' ? 'User Login' : language === 'tr' ? 'Kullanıcı Girişi' : 'چوونەژوورەوەی بەکارهێنەر'}</h2>
@@ -1345,7 +1345,7 @@ export default function App() {
                   required
                   value={loginData.username}
                   onChange={(e) => setLoginData({...loginData, username: e.target.value})}
-                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                   placeholder="email@example.com"
                 />
               </div>
@@ -1356,13 +1356,13 @@ export default function App() {
                   required
                   value={loginData.password}
                   onChange={(e) => setLoginData({...loginData, password: e.target.value})}
-                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                   placeholder="..."
                 />
               </div>
               <button 
                 type="submit"
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors mt-4 shadow-lg shadow-red-600/20"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-colors mt-4 shadow-lg shadow-emerald-600/20"
               >
                 {language === 'en' ? 'Login' : language === 'tr' ? 'Giriş Yap' : 'چوونەژوورەوە'}
               </button>
@@ -1382,7 +1382,7 @@ export default function App() {
                 {language === 'en' ? 'Continue with Google' : 'بەردەوامبە لەگەڵ گووگڵ'}
               </button>
               <div className="text-center pt-4 space-y-4">
-                <p className="text-sm text-gray-500">{t('noAccount')} <button type="button" onClick={() => setCurrentView('register')} className="text-red-600 font-bold hover:underline">{t('register')}</button></p>
+                <p className="text-sm text-gray-500">{t('noAccount')} <button type="button" onClick={() => setCurrentView('register')} className="text-emerald-600 font-bold hover:underline">{t('register')}</button></p>
               </div>
             </form>
           </div>
@@ -1400,7 +1400,7 @@ export default function App() {
                   required
                   value={loginData.username}
                   onChange={(e) => setLoginData({...loginData, username: e.target.value})}
-                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                 />
               </div>
               <div>
@@ -1410,7 +1410,7 @@ export default function App() {
                   required
                   value={loginData.password}
                   onChange={(e) => setLoginData({...loginData, password: e.target.value})}
-                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                 />
               </div>
               <button 
@@ -1430,7 +1430,7 @@ export default function App() {
           </div>
         ) : currentView === 'register' ? (
           <div className="px-4 py-10 flex flex-col items-center">
-            <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mb-6">
+            <div className="w-20 h-20 bg-emerald-600 rounded-full flex items-center justify-center mb-6">
               <User size={40} color="white" />
             </div>
             <h2 className="text-2xl font-bold mb-6">{t('register')}</h2>
@@ -1438,7 +1438,7 @@ export default function App() {
             <div className="w-full max-w-sm bg-[#1a1a1a] p-8 rounded-3xl shadow-2xl border border-white/5 relative overflow-hidden">
               {isLoading && (
                 <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                  <div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
                 </div>
               )}
 
@@ -1450,7 +1450,7 @@ export default function App() {
                     required
                     value={registerData.full_name}
                     onChange={(e) => setRegisterData({...registerData, full_name: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                     placeholder="..."
                   />
                 </div>
@@ -1461,7 +1461,7 @@ export default function App() {
                     required
                     value={registerData.username}
                     onChange={(e) => setRegisterData({...registerData, username: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                     placeholder="email@example.com"
                   />
                 </div>
@@ -1472,7 +1472,7 @@ export default function App() {
                     required
                     value={registerData.password}
                     onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                     placeholder="..."
                   />
                 </div>
@@ -1482,7 +1482,7 @@ export default function App() {
                     type="text"
                     value={registerData.phone}
                     onChange={(e) => setRegisterData({...registerData, phone: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                     placeholder="0750..."
                   />
                 </div>
@@ -1492,14 +1492,14 @@ export default function App() {
                     type="text"
                     value={registerData.address}
                     onChange={(e) => setRegisterData({...registerData, address: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                     placeholder="..."
                   />
                 </div>
                 <button 
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl transition-colors mt-4 shadow-lg shadow-red-600/20"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl transition-colors mt-4 shadow-lg shadow-emerald-600/20"
                 >
                   {t('register')}
                 </button>
@@ -1519,14 +1519,14 @@ export default function App() {
                   {language === 'en' ? 'Continue with Google' : 'بەردەوامبە لەگەڵ گووگڵ'}
                 </button>
                 <div className="text-center pt-4">
-                  <p className="text-sm text-gray-500">{t('haveAccount')} <button type="button" onClick={() => setCurrentView('login')} className="text-red-600 font-bold hover:underline">{language === 'en' ? 'Login' : 'چوونەژوورەوە'}</button></p>
+                  <p className="text-sm text-gray-500">{t('haveAccount')} <button type="button" onClick={() => setCurrentView('login')} className="text-emerald-600 font-bold hover:underline">{language === 'en' ? 'Login' : 'چوونەژوورەوە'}</button></p>
                 </div>
               </form>
             </div>
           </div>
         ) : currentView === 'profile' ? (
           <div className="px-4 py-10 flex flex-col items-center">
-            <div className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-red-600/20">
+            <div className="w-24 h-24 bg-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-emerald-600/20">
               <User size={48} color="white" />
             </div>
             <h2 className="text-2xl font-bold mb-2">{currentUser?.full_name || currentUser?.username}</h2>
@@ -1568,7 +1568,7 @@ export default function App() {
                   onClick={() => setCurrentView('admin')}
                   className="w-full bg-[#1a1a1a] hover:bg-white/5 text-white font-bold py-4 rounded-2xl transition-colors border border-white/5 flex items-center justify-center gap-3"
                 >
-                  <Grid size={20} className="text-red-600" />
+                  <Grid size={20} className="text-emerald-600" />
                   {t('admin')}
                 </button>
               )}
@@ -1582,7 +1582,7 @@ export default function App() {
                   setCurrentView('login');
                   showToastMsg('بە سەرکەوتوویی چوویتە دەرەوە');
                 }}
-                className="w-full bg-white/5 hover:bg-red-600/10 text-red-600 font-bold py-4 rounded-2xl transition-colors border border-red-600/20"
+                className="w-full bg-white/5 hover:bg-emerald-600/10 text-emerald-600 font-bold py-4 rounded-2xl transition-colors border border-emerald-600/20"
               >
                 {t('logout')}
               </button>
@@ -1594,7 +1594,7 @@ export default function App() {
               {/* Admin Sidebar for Desktop */}
               <div className="hidden lg:block w-64 flex-shrink-0 space-y-2">
                 <div className="bg-[#1a1a1a] p-6 rounded-3xl mb-6">
-                  <h2 className="text-xl font-bold text-red-600 mb-1">{t('welcomeAdmin')}</h2>
+                  <h2 className="text-xl font-bold text-emerald-600 mb-1">{t('welcomeAdmin')}</h2>
                   <p className="text-sm text-gray-500">{currentUser?.full_name}</p>
                 </div>
                 
@@ -1615,7 +1615,7 @@ export default function App() {
                       if (tab.id === 'manage_products') fetchProducts(true);
                       if (tab.id === 'orders') fetchOrders();
                     }}
-                    className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all ${adminTab === tab.id ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-[#1a1a1a] text-gray-400 hover:bg-[#262626]'}`}
+                    className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all ${adminTab === tab.id ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-[#1a1a1a] text-gray-400 hover:bg-[#262626]'}`}
                   >
                     {tab.icon}
                     <span className="font-bold text-sm">{tab.label}</span>
@@ -1627,7 +1627,7 @@ export default function App() {
               <div className="lg:hidden">
                 <div className="bg-[#1a1a1a] p-6 rounded-3xl mb-6 flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold text-red-600">{t('welcomeAdmin')}</h2>
+                    <h2 className="text-2xl font-bold text-emerald-600">{t('welcomeAdmin')}</h2>
                     <p className="text-gray-500">{currentUser?.full_name}</p>
                   </div>
                   <button onClick={() => setCurrentView('home')} className="p-2 bg-[#262626] rounded-full">
@@ -1653,7 +1653,7 @@ export default function App() {
                         if (tab.id === 'manage_products') fetchProducts(true);
                         if (tab.id === 'orders') fetchOrders();
                       }}
-                      className={`flex-shrink-0 px-6 py-3 rounded-2xl font-bold transition-all ${adminTab === tab.id ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-[#1a1a1a] text-gray-400'}`}
+                      className={`flex-shrink-0 px-6 py-3 rounded-2xl font-bold transition-all ${adminTab === tab.id ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-[#1a1a1a] text-gray-400'}`}
                     >
                       {tab.label}
                     </button>
@@ -1670,7 +1670,7 @@ export default function App() {
                   <select 
                     value={newProduct.category_id}
                     onChange={(e) => setNewProduct({...newProduct, category_id: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                   >
                     {categories.map(cat => (
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -1685,7 +1685,7 @@ export default function App() {
                     required
                     value={newProduct.name}
                     onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                     placeholder="ناوی کاڵا بنووسە..."
                   />
                 </div>
@@ -1710,7 +1710,7 @@ export default function App() {
                           ] : newProduct.weights
                         });
                       }}
-                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                     />
                   </div>
                   <div>
@@ -1719,7 +1719,7 @@ export default function App() {
                       type="number"
                       value={newProduct.old_price}
                       onChange={(e) => setNewProduct({...newProduct, old_price: e.target.value})}
-                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                       placeholder="نموونە: 12000"
                     />
                   </div>
@@ -1729,7 +1729,7 @@ export default function App() {
                       type="number"
                       value={newProduct.discount}
                       onChange={(e) => setNewProduct({...newProduct, discount: e.target.value})}
-                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                       placeholder="نموونە: 20"
                     />
                   </div>
@@ -1741,7 +1741,7 @@ export default function App() {
                     id="is_limited_new"
                     checked={newProduct.is_limited === 1}
                     onChange={(e) => setNewProduct({...newProduct, is_limited: e.target.checked ? 1 : 0})}
-                    className="w-5 h-5 accent-red-600"
+                    className="w-5 h-5 accent-emerald-600"
                   />
                   <label htmlFor="is_limited_new" className="text-sm font-bold text-white cursor-pointer">
                     {t('limitedTimeOffers')} (Limited Time)
@@ -1760,10 +1760,10 @@ export default function App() {
                     />
                     <label 
                       htmlFor="file-upload-product"
-                      className="w-full bg-[#262626] border-2 border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-red-600 transition-colors"
+                      className="w-full bg-[#262626] border-2 border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-emerald-600 transition-colors"
                     >
                       {uploading ? (
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
                       ) : newProduct.image ? (
                         <img src={newProduct.image} className="h-32 w-32 object-cover rounded-xl" />
                       ) : (
@@ -1809,7 +1809,7 @@ export default function App() {
                             const weights = newProduct.weights.filter((_, i) => i !== idx);
                             setNewProduct({...newProduct, weights});
                           }}
-                          className="p-3 text-red-600"
+                          className="p-3 text-emerald-600"
                         >
                           <Trash2 size={20} />
                         </button>
@@ -1819,7 +1819,7 @@ export default function App() {
                   <button 
                     type="button"
                     onClick={() => setNewProduct({...newProduct, weights: [...newProduct.weights, { w: 0, p: 0 }]})}
-                    className="text-sm text-red-600 font-bold flex items-center gap-1"
+                    className="text-sm text-emerald-600 font-bold flex items-center gap-1"
                   >
                     <Plus size={16} /> زیادکردنی کێشی تر
                   </button>
@@ -1829,7 +1829,7 @@ export default function App() {
                   <button 
                     type="submit"
                     disabled={uploading}
-                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl transition-colors"
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl transition-colors"
                   >
                     پاشەکەوتکردن
                   </button>
@@ -1863,7 +1863,7 @@ export default function App() {
                       <button 
                         type="button"
                         onClick={() => handleDeleteProduct(product.id)}
-                        className="p-2 text-red-600 hover:bg-red-600/10 rounded-full transition-colors"
+                        className="p-2 text-emerald-600 hover:bg-emerald-600/10 rounded-full transition-colors"
                         title="Delete"
                       >
                         <Trash2 size={20} />
@@ -1894,7 +1894,7 @@ export default function App() {
                       <button 
                         type="button"
                         onClick={() => handleDeleteCategory(cat.id)}
-                        className="p-2 text-red-600 hover:bg-red-600/10 rounded-full transition-colors"
+                        className="p-2 text-emerald-600 hover:bg-emerald-600/10 rounded-full transition-colors"
                         title="Delete"
                       >
                         <Trash2 size={20} />
@@ -1934,7 +1934,7 @@ export default function App() {
                     type="number"
                     value={deliveryFeeVal}
                     onChange={(e) => setDeliveryFeeVal(parseInt(e.target.value))}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 outline-none focus:ring-2 focus:ring-red-600"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 outline-none focus:ring-2 focus:ring-emerald-600"
                   />
                 </div>
                 <div>
@@ -1943,12 +1943,12 @@ export default function App() {
                     type="number"
                     value={freeThreshold}
                     onChange={(e) => setFreeThreshold(parseInt(e.target.value))}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 outline-none focus:ring-2 focus:ring-red-600"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 outline-none focus:ring-2 focus:ring-emerald-600"
                   />
                 </div>
                 <button 
                   type="submit"
-                  className="w-full bg-red-600 py-4 rounded-xl font-bold text-lg shadow-lg shadow-red-600/20 active:scale-95 transition-transform"
+                  className="w-full bg-emerald-600 py-4 rounded-xl font-bold text-lg shadow-lg shadow-emerald-600/20 active:scale-95 transition-transform"
                 >
                   پاشەکەوتکردن
                 </button>
@@ -1965,7 +1965,7 @@ export default function App() {
                     <div key={order.id} className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/5 space-y-4">
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="text-red-600 font-bold">#{order.id}</p>
+                          <p className="text-emerald-600 font-bold">#{order.id}</p>
                           <p className="text-xs text-gray-500">{new Date(order.date).toLocaleString()}</p>
                         </div>
                         <select 
@@ -1973,7 +1973,7 @@ export default function App() {
                           onChange={(e) => updateOrderStatus(order.id, e.target.value)}
                           className={`text-xs font-bold px-3 py-1 rounded-full outline-none ${
                             order.status === 'completed' ? 'bg-green-500/20 text-green-500' :
-                            order.status === 'cancelled' ? 'bg-red-500/20 text-red-500' :
+                            order.status === 'cancelled' ? 'bg-emerald-500/20 text-emerald-500' :
                             'bg-yellow-500/20 text-yellow-500'
                           }`}
                         >
@@ -2009,7 +2009,7 @@ export default function App() {
 
                       <div className="border-t border-white/5 pt-4 flex justify-between font-bold">
                         <span>{t('total')}</span>
-                        <span className="text-red-600">{(order.total_price + order.delivery_fee).toLocaleString()} {t('dinar')}</span>
+                        <span className="text-emerald-600">{(order.total_price + order.delivery_fee).toLocaleString()} {t('dinar')}</span>
                       </div>
 
                       {order.location_url && (
@@ -2037,7 +2037,7 @@ export default function App() {
                     required
                     value={newCategory.name}
                     onChange={(e) => setNewCategory({...newCategory, name: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
                     placeholder="ناوی هاوپۆل بنووسە..."
                   />
                 </div>
@@ -2053,10 +2053,10 @@ export default function App() {
                     />
                     <label 
                       htmlFor="file-upload-cat"
-                      className="w-full bg-[#262626] border-2 border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-red-600 transition-colors"
+                      className="w-full bg-[#262626] border-2 border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-emerald-600 transition-colors"
                     >
                       {uploading ? (
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
                       ) : newCategory.icon ? (
                         <img src={newCategory.icon} className="h-20 w-20 object-cover rounded-xl" />
                       ) : (
@@ -2071,7 +2071,7 @@ export default function App() {
                 <button 
                   type="submit"
                   disabled={uploading}
-                  className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl transition-colors"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl transition-colors"
                 >
                   زیادکردنی هاوپۆل
                 </button>
@@ -2102,7 +2102,7 @@ export default function App() {
                     />
                     <label 
                       htmlFor="logo-upload"
-                      className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-xl cursor-pointer transition-colors"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-xl cursor-pointer transition-colors"
                     >
                       {uploading ? 'باردەکرێت...' : 'گۆڕینی لۆگۆ'}
                     </label>
@@ -2207,7 +2207,7 @@ export default function App() {
                     id="is_limited_edit"
                     checked={editingProduct.is_limited === 1}
                     onChange={(e) => setEditingProduct({...editingProduct, is_limited: e.target.checked ? 1 : 0})}
-                    className="w-5 h-5 accent-red-600"
+                    className="w-5 h-5 accent-emerald-600"
                   />
                   <label htmlFor="is_limited_edit" className="text-sm font-bold text-white cursor-pointer">
                     {t('limitedTimeOffers')} (Limited Time)
@@ -2264,7 +2264,7 @@ export default function App() {
                             const weights = editingProduct.weights.filter((_, i) => i !== idx);
                             setEditingProduct({...editingProduct, weights});
                           }}
-                          className="p-3 text-red-600"
+                          className="p-3 text-emerald-600"
                         >
                           <Trash2 size={20} />
                         </button>
@@ -2274,7 +2274,7 @@ export default function App() {
                   <button 
                     type="button"
                     onClick={() => setEditingProduct({...editingProduct, weights: [...editingProduct.weights, { w: 0, p: 0 }]})}
-                    className="text-sm text-red-600 font-bold flex items-center gap-1"
+                    className="text-sm text-emerald-600 font-bold flex items-center gap-1"
                   >
                     <Plus size={16} /> زیادکردنی کێشی تر
                   </button>
@@ -2283,7 +2283,7 @@ export default function App() {
                 <div className="flex gap-3 pt-4">
                   <button 
                     onClick={handleUpdateProduct}
-                    className="flex-1 bg-red-600 py-4 rounded-2xl font-bold"
+                    className="flex-1 bg-emerald-600 py-4 rounded-2xl font-bold"
                   >
                     پاشەکەوتکردن
                   </button>
@@ -2295,7 +2295,7 @@ export default function App() {
                         setEditingProduct(null);
                       }
                     }}
-                    className="bg-red-600/20 text-red-600 p-4 rounded-2xl font-bold border border-red-600/20"
+                    className="bg-emerald-600/20 text-emerald-600 p-4 rounded-2xl font-bold border border-emerald-600/20"
                   >
                     <Trash2 size={24} />
                   </button>
@@ -2349,7 +2349,7 @@ export default function App() {
               <div className="flex gap-2">
                 <button 
                   onClick={handleUpdatePromotion}
-                  className="flex-1 bg-red-600 py-3 rounded-xl font-bold"
+                  className="flex-1 bg-emerald-600 py-3 rounded-xl font-bold"
                 >
                   پاشەکەوت
                 </button>
@@ -2408,7 +2408,7 @@ export default function App() {
               <div className="flex flex-col gap-2">
                 <button 
                   onClick={handleUpdateCategory}
-                  className="w-full bg-red-600 py-3 rounded-xl font-bold"
+                  className="w-full bg-emerald-600 py-3 rounded-xl font-bold"
                 >
                   پاشەکەوت
                 </button>
@@ -2421,7 +2421,7 @@ export default function App() {
                         setEditingCategory(null);
                       }
                     }}
-                    className="flex-1 bg-red-600/20 text-red-600 py-3 rounded-xl font-bold border border-red-600/20"
+                    className="flex-1 bg-emerald-600/20 text-emerald-600 py-3 rounded-xl font-bold border border-emerald-600/20"
                   >
                     سڕینەوە
                   </button>
@@ -2514,14 +2514,14 @@ export default function App() {
               <div className="grid grid-cols-2 gap-3">
                 <button 
                   onClick={() => setShowReviewForm(true)}
-                  className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-red-600/20"
+                  className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-emerald-600/20"
                 >
                   <Star size={20} />
                   {t('rate')}
                 </button>
                 <button 
                   onClick={() => setShowCheckoutSuccess(false)}
-                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-colors"
                 >
                   {t('home')}
                 </button>

@@ -109,7 +109,7 @@ export const LiveSupport: React.FC<LiveSupportProps> = ({ language, t }) => {
             dir={language === 'en' || language === 'tr' ? 'ltr' : 'rtl'}
           >
             {/* Header */}
-            <div className="p-6 bg-red-600 flex items-center justify-between text-white">
+            <div className="p-6 bg-emerald-600 flex items-center justify-between text-white">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
                   <Bot size={24} />
@@ -137,7 +137,7 @@ export const LiveSupport: React.FC<LiveSupportProps> = ({ language, t }) => {
                   <div
                     className={`max-w-[80%] p-4 rounded-3xl text-sm leading-relaxed ${
                       msg.sender === 'user'
-                        ? 'bg-red-600 text-white rounded-tr-none'
+                        ? 'bg-emerald-600 text-white rounded-tr-none'
                         : 'bg-white/5 text-gray-300 rounded-tl-none border border-white/5'
                     }`}
                   >
@@ -151,7 +151,7 @@ export const LiveSupport: React.FC<LiveSupportProps> = ({ language, t }) => {
               {isLoading && (
                 <div className="flex justify-start">
                   <div className="bg-white/5 p-4 rounded-3xl rounded-tl-none border border-white/5 flex items-center gap-2">
-                    <Loader2 size={16} className="animate-spin text-red-600" />
+                    <Loader2 size={16} className="animate-spin text-emerald-600" />
                     <span className="text-xs text-gray-500">{t('typing')}</span>
                   </div>
                 </div>
@@ -166,12 +166,12 @@ export const LiveSupport: React.FC<LiveSupportProps> = ({ language, t }) => {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={t('typeMessage')}
-                className="flex-1 bg-[#262626] border border-white/10 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-red-600 transition-all"
+                className="flex-1 bg-[#262626] border border-white/10 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-600 transition-all"
               />
               <button
                 type="submit"
                 disabled={!input.trim() || isLoading}
-                className="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center text-white hover:bg-red-700 transition-colors disabled:opacity-50 shadow-lg shadow-red-600/20"
+                className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-lg shadow-emerald-600/20"
               >
                 <Send size={20} className={language === 'en' || language === 'tr' ? '' : 'rotate-180'} />
               </button>
@@ -185,7 +185,7 @@ export const LiveSupport: React.FC<LiveSupportProps> = ({ language, t }) => {
         whileTap={{ scale: 0.9 }}
         onClick={() => setIsOpen(!isOpen)}
         className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl transition-all ${
-          isOpen ? 'bg-white/10 text-red-600' : 'bg-red-600'
+          isOpen ? 'bg-white/10 text-emerald-600' : 'bg-emerald-600'
         }`}
       >
         {isOpen ? <X size={28} /> : <MessageCircle size={28} />}

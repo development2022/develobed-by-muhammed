@@ -28,7 +28,7 @@ export const Verification: React.FC<VerificationProps> = ({
       </p>
       <button 
         onClick={() => setCurrentView('login')}
-        className="w-full max-w-sm bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-red-600/20"
+        className="w-full max-w-sm bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-emerald-600/20"
       >
         {language === 'en' ? 'Login' : 'چوونەژوورەوە'}
       </button>
