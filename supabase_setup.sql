@@ -95,5 +95,5 @@ CREATE TABLE IF NOT EXISTS public.polls (
 
 -- 9. Insert default admin
 INSERT INTO public.users (username, password, full_name, phone, is_admin, is_super_admin, is_verified)
-VALUES ('admin@admin.com', 'admin', 'Super Admin', '0000000000', 1, 1, 1)
+VALUES ('admin', 'admin', 'Super Admin', '0000000000', 1, 1, 1)
 ON CONFLICT (username) DO NOTHING;

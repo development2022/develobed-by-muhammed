@@ -1,5 +1,5 @@
 {
   "name": "sherdll nuts1",
   "description": "A premium nuts and snacks e-commerce platform with multi-language support and admin dashboard.",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["geolocation"]
 }

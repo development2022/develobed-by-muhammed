@@ -536,16 +536,53 @@ export default function App() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, registerData.username, registerData.password);
-      const user = userCredential.user;
-      await updateProfile(user, { displayName: registerData.full_name });
-      
-      await sendEmailVerification(user);
-      setVerificationEmail(user.email || '');
-      await signOut(auth);
-      setCurrentView('verification');
-      showToastMsg(language === 'en' ? 'Verification email sent' : 'ئیمەیڵی دڵنیایی نێردرا');
+      // 1. Try Database Register first
+      const dbResponse = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: registerData.username,
+          password: registerData.password,
+          full_name: registerData.full_name,
+          phone: registerData.phone,
+          address: registerData.address
+        })
+      });
+
+      if (dbResponse.ok) {
+        const dbData = await dbResponse.json();
+        if (dbData.success) {
+          setIsLoggedIn(true);
+          setCurrentUser(dbData.user);
+          localStorage.setItem('currentUser', JSON.stringify(dbData.user));
+          setCurrentView('home');
+          showToastMsg(`بەخێربێیت ${dbData.user.full_name || dbData.user.username}`);
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        const errorData = await dbResponse.json();
+        if (errorData.message) {
+          showToastMsg(errorData.message);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // 2. Fallback to Firebase Auth (if it looks like an email)
+      if (registerData.username.includes('@')) {
+        const userCredential = await createUserWithEmailAndPassword(auth, registerData.username, registerData.password);
+        const user = userCredential.user;
+        await updateProfile(user, { displayName: registerData.full_name });
+        
+        await sendEmailVerification(user);
+        setVerificationEmail(user.email || '');
+        await signOut(auth);
+        setCurrentView('verification');
+        showToastMsg(language === 'en' ? 'Verification email sent' : 'ئیمەیڵی دڵنیایی نێردرا');
+      }
     } catch (error: any) {
       console.error("Register error:", error);
       const errorCode = error.code;
@@ -557,6 +594,8 @@ export default function App() {
       } else {
         showToastMsg(errorMessage || 'هەڵەیەک ڕوویدا لە کاتی خۆتۆمارکردن');
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -1355,7 +1394,7 @@ export default function App() {
             <h2 className="text-2xl font-bold mb-8">{t('adminLogin')}</h2>
             <form onSubmit={handleLogin} className="w-full max-w-sm space-y-4 bg-[#1a1a1a] p-8 rounded-3xl shadow-2xl border border-white/5">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Admin Email</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">{language === 'en' ? 'Admin Username' : 'ناوی بەکارهێنەری ئەدمین'}</label>
                 <input 
                   type="text"
                   required
@@ -1433,6 +1472,26 @@ export default function App() {
                     required
                     value={registerData.password}
                     onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                    placeholder="..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">{language === 'en' ? 'Phone' : language === 'tr' ? 'Telefon' : 'ژمارەی مۆبایل'}</label>
+                  <input 
+                    type="text"
+                    value={registerData.phone}
+                    onChange={(e) => setRegisterData({...registerData, phone: e.target.value})}
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                    placeholder="0750..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">{language === 'en' ? 'Address' : language === 'tr' ? 'Adres' : 'ناونیشان'}</label>
+                  <input 
+                    type="text"
+                    value={registerData.address}
+                    onChange={(e) => setRegisterData({...registerData, address: e.target.value})}
                     className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                     placeholder="..."
                   />

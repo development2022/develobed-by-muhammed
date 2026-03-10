@@ -18,21 +18,11 @@ db.exec(`
     phone TEXT UNIQUE,
     address TEXT,
     is_admin INTEGER DEFAULT 0,
-    is_super_admin INTEGER DEFAULT 0,
     is_verified INTEGER DEFAULT 0,
     verification_code TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
-`);
 
-// Add missing columns if they don't exist (for existing databases)
-try {
-  db.exec("ALTER TABLE users ADD COLUMN is_super_admin INTEGER DEFAULT 0");
-} catch (e) {
-  // Column probably already exists
-}
-
-db.exec(`
   CREATE TABLE IF NOT EXISTS categories (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -106,8 +96,7 @@ db.exec(`
 `);
 
 // Insert default admin if not exists
-const stmt = db.prepare("INSERT OR IGNORE INTO users (username, password, full_name, is_admin, is_super_admin, is_verified) VALUES (?, ?, ?, ?, ?, ?)");
-stmt.run('admin', 'admin123', 'System Administrator', 1, 0, 1);
-stmt.run('admin@admin.com', 'admin', 'Super Admin', 1, 1, 1);
+const stmt = db.prepare("INSERT OR IGNORE INTO users (username, password, full_name, is_admin, is_verified) VALUES (?, ?, ?, ?, ?)");
+stmt.run('admin', 'admin', 'System Administrator', 1, 1);
 
 export default db;
