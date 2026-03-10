@@ -67,6 +67,22 @@ export const SideMenu: React.FC<SideMenuProps> = ({
                 <span className="font-medium">{t('home')}</span>
               </button>
               <button 
+                onClick={() => { setCurrentView(currentUser ? 'profile' : 'login'); setShowSideMenu(false); }}
+                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-colors ${currentView === 'login' || currentView === 'profile' ? 'bg-red-600 text-white' : 'hover:bg-white/5 text-gray-300'}`}
+              >
+                <User size={22} />
+                <span className="font-medium">{currentUser ? t('profile') : t('login')}</span>
+              </button>
+              {!currentUser && (
+                <button 
+                  onClick={() => { setCurrentView('register'); setShowSideMenu(false); }}
+                  className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-colors ${currentView === 'register' ? 'bg-red-600 text-white' : 'hover:bg-white/5 text-gray-300'}`}
+                >
+                  <User size={22} className="text-red-600" />
+                  <span className="font-medium">{t('register')}</span>
+                </button>
+              )}
+              <button 
                 onClick={() => { setShowCart(true); setShowSideMenu(false); }}
                 className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 transition-colors text-gray-300"
               >

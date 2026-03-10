@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Search, Star, ShoppingCart, X, Video } from 'lucide-react';
+import { Menu, Search, Star, ShoppingCart, X, Video, User } from 'lucide-react';
 
 interface HeaderProps {
   language: string;
@@ -29,6 +29,8 @@ export const Header: React.FC<HeaderProps> = ({
   cartCount,
   setShowCart,
   setShowSideMenu,
+  isLoggedIn,
+  currentUser,
   setCurrentView,
   averageRating,
   setShowReviews,
@@ -108,6 +110,31 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 )}
               </button>
+              <button 
+                onClick={() => setCurrentView(isLoggedIn ? 'profile' : 'login')}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors flex items-center gap-2"
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isLoggedIn ? 'bg-red-600' : 'bg-white/10'}`}>
+                  <User size={18} className="text-white" />
+                </div>
+                {isLoggedIn ? (
+                  <span className="hidden lg:block text-xs font-bold max-w-[80px] truncate">
+                    {currentUser?.full_name || currentUser?.username}
+                  </span>
+                ) : (
+                  <span className="hidden lg:block text-xs font-bold uppercase tracking-wider">
+                    {t('login')}
+                  </span>
+                )}
+              </button>
+              {!isLoggedIn && (
+                <button 
+                  onClick={() => setCurrentView('register')}
+                  className="hidden lg:flex px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all uppercase tracking-wider shadow-lg shadow-red-600/20"
+                >
+                  {t('register')}
+                </button>
+              )}
             </div>
           </>
         )}
