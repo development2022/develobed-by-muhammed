@@ -2,16 +2,23 @@
  * Audio assets and playback logic
  */
 
-export const SOUND_URLS = {
-  ORDER_SUCCESS: '/sounds/order-success.mp3',
-  NOTIFICATION: '/sounds/notification.mp3',
-};
+// 1. UPLOAD your alert.mp3 to src/lib/
+// 2. UNCOMMENT the line below:
+// import alertSound from './alert.mp3';
+
+// Fallback sound for testing (Pixabay royalty-free)
+const FALLBACK_URL = 'https://cdn.pixabay.com/audio/2022/03/15/audio_78330a613f.mp3';
 
 class SoundService {
   private static instance: SoundService;
-  private audioCache: Map<string, HTMLAudioElement> = new Map();
+  private audio: HTMLAudioElement | null = null;
 
-  private constructor() {}
+  private constructor() {
+    if (typeof window !== 'undefined') {
+      // 3. CHANGE this to use alertSound after uncommenting the import above:
+      this.audio = new Audio(FALLBACK_URL);
+    }
+  }
 
   static getInstance(): SoundService {
     if (!SoundService.instance) {
@@ -20,30 +27,24 @@ class SoundService {
     return SoundService.instance;
   }
 
-  play(url: string) {
+  /**
+   * Plays the alert sound.
+   * If you upload src/lib/alert.mp3, you can modify this to use the local file.
+   */
+  async playAlert() {
+    if (!this.audio) return;
+    
     try {
-      let audio = this.audioCache.get(url);
-      if (!audio) {
-        audio = new Audio(url);
-        this.audioCache.set(url, audio);
-      }
-      
-      // Reset sound if it's already playing
-      audio.currentTime = 0;
-      audio.play().catch(err => {
-        console.warn("Audio playback interrupted or blocked by browser:", err);
-      });
+      this.audio.currentTime = 0;
+      await this.audio.play();
     } catch (error) {
-      console.error("Sound playback error:", error);
+      console.warn("Audio playback blocked or failed:", error);
     }
   }
 
+  // Helper for order success
   playOrderSuccess() {
-    this.play(SOUND_URLS.ORDER_SUCCESS);
-  }
-
-  playNotification() {
-    this.play(SOUND_URLS.NOTIFICATION);
+    this.playAlert();
   }
 }
 
