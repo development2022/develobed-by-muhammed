@@ -5,9 +5,10 @@ import { GoogleGenAI } from "@google/genai";
 
 interface VideoAIProps {
   t: (key: string) => string;
+  language: string;
 }
 
-export const VideoAI: React.FC<VideoAIProps> = ({ t }) => {
+export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -34,9 +35,9 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t }) => {
   const analyzeVideo = async () => {
     if (!videoFile) return;
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = (window as any).GEMINI_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      setError("Gemini API key is not configured. Please check your settings.");
+      setError(t('apiKeyMissing'));
       return;
     }
 
@@ -58,8 +59,13 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t }) => {
 
       const base64Data = await base64Promise;
 
+      const targetLang = language === 'ku' ? 'Kurdish Sorani (Arabic script)' : 
+                         language === 'ar' ? 'Arabic' : 
+                         language === 'tr' ? 'Turkish' : 'English';
+
       const prompt = `
-        Analyze this video content and provide the following in JSON format:
+        Analyze this video content and provide the following in JSON format. 
+        All text values in the JSON MUST be in ${targetLang}.
         1. "summary": A concise summary of the video.
         2. "moments": A list of key moments with "timestamp" (e.g. 0:45) and "description".
         3. "flashcards": A list of 3-5 flashcards with "question" and "answer".

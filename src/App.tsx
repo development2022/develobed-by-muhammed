@@ -51,6 +51,7 @@ import { TopBanner } from './components/TopBanner';
 import { Login } from './components/Auth/Login';
 import { Register } from './components/Auth/Register';
 import { Verification } from './components/Auth/Verification';
+import LocationPromoPage from './LocationPromoPage';
 
 async function translateText(text: string): Promise<{ ar: string, en: string, tr: string }> {
   if (!text) return { ar: '', en: '', tr: '' };
@@ -96,7 +97,7 @@ export default function App() {
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState({ show: false, message: '' });
-  const [currentView, setCurrentView] = useState<'home' | 'admin' | 'login' | 'profile' | 'register' | 'admin_login' | 'video_ai'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'admin' | 'login' | 'profile' | 'register' | 'admin_login' | 'video_ai' | 'location_promo'>('home');
   const [adminTab, setAdminTab] = useState<'items' | 'manage_cats' | 'new_cat' | 'settings' | 'promotions' | 'delivery' | 'orders'>('items');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
@@ -130,6 +131,16 @@ export default function App() {
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
   const [language, setLanguage] = useState<Language>('ku');
   const [hasApiKey, setHasApiKey] = useState(true);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editProfileData, setEditProfileData] = useState({ full_name: '', phone: '', address: '' });
+  const [checkoutAddress, setCheckoutAddress] = useState('');
+  const [checkoutLocation, setCheckoutLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    if (currentUser) {
+      setCheckoutAddress(currentUser.address || '');
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     const checkApiKey = async () => {
@@ -150,6 +161,46 @@ export default function App() {
     if (window.aistudio) {
       await window.aistudio.openSelectKey();
       setHasApiKey(true);
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+
+    try {
+      const response = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          ...editProfileData
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setCurrentUser(data.user);
+        localStorage.setItem('currentUser', JSON.stringify(data.user));
+        setIsEditingProfile(false);
+        showToastMsg(t('profileUpdated'));
+      } else {
+        showToastMsg(data.message || t('profileUpdateError'));
+      }
+    } catch (error) {
+      console.error('Update profile error:', error);
+      showToastMsg(t('profileUpdateError'));
+    }
+  };
+
+  const startEditingProfile = () => {
+    if (currentUser) {
+      setEditProfileData({
+        full_name: currentUser.full_name || '',
+        phone: currentUser.phone || '',
+        address: currentUser.address || ''
+      });
+      setIsEditingProfile(true);
     }
   };
 
@@ -477,7 +528,9 @@ export default function App() {
       const errorCode = error.code;
       const errorMessage = error.message || '';
       if (errorCode === 'auth/invalid-credential' || errorCode === 'auth/user-not-found' || errorCode === 'auth/wrong-password') {
-        showToastMsg("Email or password is incorrect");
+        showToastMsg(language === 'en' 
+          ? "Invalid credentials. Admin? Try 'admin@admin.com' / 'admin'" 
+          : "ئیمەیڵ یان وشەی تێپەڕ هەڵەیە. ئەدمین؟ تاقی بکەرەوە 'admin@admin.com' / 'admin'");
       } else {
         showToastMsg(errorMessage || "Email or password is incorrect");
       }
@@ -937,11 +990,38 @@ export default function App() {
       return;
     }
 
+    if (!checkoutAddress.trim()) {
+      showToastMsg(t('provideAddress'));
+      return;
+    }
+
     const whatsappNumber = "9647504394038";
     
-    const sendOrder = async (locationUrl?: string) => {
+    const sendOrder = async () => {
+      const locationUrl = checkoutLocation 
+        ? `https://www.google.com/maps?q=${checkoutLocation.lat},${checkoutLocation.lng}`
+        : undefined;
+
       // Save to DB first
       try {
+        // Update user address if it was empty or changed
+        if (checkoutAddress !== currentUser.address) {
+          await fetch('/api/users/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              full_name: currentUser.full_name,
+              phone: currentUser.phone,
+              address: checkoutAddress
+            })
+          });
+          // Update local state
+          const updatedUser = { ...currentUser, address: checkoutAddress };
+          setCurrentUser(updatedUser);
+          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        }
+
         const orderResponse = await fetch('/api/orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -973,7 +1053,7 @@ export default function App() {
         
         message += `👤 *${t('fullName')}*: ${currentUser.full_name}\n`;
         message += `📞 *${t('phone')}*: ${currentUser.phone}\n`;
-        message += `🏠 *${t('address')}*: ${currentUser.address}\n\n`;
+        message += `🏠 *${t('address')}*: ${checkoutAddress}\n\n`;
 
         cart.forEach((item, index) => {
           message += `${index + 1}. *${item.name}*\n`;
@@ -1011,24 +1091,7 @@ export default function App() {
       }
     };
 
-    if ("geolocation" in navigator) {
-      showToastMsg("Getting location...");
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          const locationUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
-          sendOrder(locationUrl);
-        },
-        (error) => {
-          console.error("Error getting location:", error);
-          showToastMsg("Could not get location. Sending without it.");
-          sendOrder();
-        },
-        { timeout: 10000 }
-      );
-    } else {
-      sendOrder();
-    }
+    sendOrder();
   };
   
   const validatePromoCode = (code: string) => {
@@ -1311,6 +1374,8 @@ export default function App() {
             )}
             </div>
           </div>
+        ) : currentView === 'location_promo' ? (
+          <LocationPromoPage setCurrentView={setCurrentView} />
         ) : currentView === 'verification' ? (
           <div className="px-4 py-20 flex flex-col items-center text-center">
             <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mb-8">
@@ -1339,14 +1404,14 @@ export default function App() {
             <h2 className="text-2xl font-bold mb-8">{language === 'en' ? 'User Login' : language === 'tr' ? 'Kullanıcı Girişi' : 'چوونەژوورەوەی بەکارهێنەر'}</h2>
             <form onSubmit={handleLogin} className="w-full max-w-sm space-y-4 bg-[#1a1a1a] p-8 rounded-3xl shadow-2xl border border-white/5">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">{language === 'en' ? 'Email' : language === 'tr' ? 'E-posta' : 'ئیمەیڵ'}</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">{language === 'en' ? 'Email or Username' : language === 'tr' ? 'E-posta veya Kullanıcı Adı' : 'ئیمەیڵ یان ناوی بەکارهێنەر'}</label>
                 <input 
-                  type="email"
+                  type="text"
                   required
                   value={loginData.username}
                   onChange={(e) => setLoginData({...loginData, username: e.target.value})}
                   className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
-                  placeholder="email@example.com"
+                  placeholder={language === 'en' ? "email@example.com or admin" : "email@example.com یان admin"}
                 />
               </div>
               <div>
@@ -1533,35 +1598,88 @@ export default function App() {
             <p className="text-gray-500 mb-8">@{currentUser?.username}</p>
             
             <div className="w-full max-w-sm space-y-4">
-              <div className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/5 space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
-                    <User size={20} />
+              {isEditingProfile ? (
+                <form onSubmit={handleUpdateProfile} className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/5 space-y-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">{t('fullName')}</label>
+                    <input 
+                      type="text"
+                      value={editProfileData.full_name}
+                      onChange={(e) => setEditProfileData({...editProfileData, full_name: e.target.value})}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
+                    />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">{t('fullName')}</p>
-                    <p className="font-medium">{currentUser?.full_name || '-'}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
-                    <MapPin size={20} />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">{t('address')}</p>
-                    <p className="font-medium">{currentUser?.address || '-'}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
-                    <Bell size={20} />
+                    <label className="block text-xs text-gray-500 mb-1">{t('phone')}</label>
+                    <input 
+                      type="text"
+                      value={editProfileData.phone}
+                      onChange={(e) => setEditProfileData({...editProfileData, phone: e.target.value})}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
+                    />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">{t('phone')}</p>
-                    <p className="font-medium">{currentUser?.phone || '-'}</p>
+                    <label className="block text-xs text-gray-500 mb-1">{t('address')}</label>
+                    <textarea 
+                      value={editProfileData.address}
+                      onChange={(e) => setEditProfileData({...editProfileData, address: e.target.value})}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-600 outline-none h-24 resize-none"
+                    />
                   </div>
+                  <div className="flex gap-2 pt-2">
+                    <button 
+                      type="button"
+                      onClick={() => setIsEditingProfile(false)}
+                      className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 rounded-xl transition-colors"
+                    >
+                      {language === 'en' ? 'Cancel' : 'پاشگەزبوونەوە'}
+                    </button>
+                    <button 
+                      type="submit"
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors shadow-lg shadow-emerald-600/20"
+                    >
+                      {language === 'en' ? 'Save' : 'پاشەکەوتکردن'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/5 space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
+                      <User size={20} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">{t('fullName')}</p>
+                      <p className="font-medium">{currentUser?.full_name || '-'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
+                      <MapPin size={20} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">{t('address')}</p>
+                      <p className="font-medium">{currentUser?.address || '-'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
+                      <Bell size={20} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">{t('phone')}</p>
+                      <p className="font-medium">{currentUser?.phone || '-'}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={startEditingProfile}
+                    className="w-full mt-4 bg-white/5 hover:bg-white/10 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 border border-white/10"
+                  >
+                    <Edit3 size={18} className="text-emerald-600" />
+                    {language === 'en' ? 'Edit Profile' : 'دەستکاری پرۆفایل'}
+                  </button>
                 </div>
-              </div>
+              )}
 
               {currentUser?.is_admin && (
                 <button 
@@ -2117,10 +2235,10 @@ export default function App() {
           </div>
         </div>
         ) : currentView === 'video_ai' ? (
-          <VideoAI t={t} />
+          <VideoAI t={t} language={language} />
         ) : null}
         
-        {currentView === 'home' && <Footer appLogo={appLogo} t={t} />}
+        {currentView === 'home' && <Footer appLogo={appLogo} t={t} setCurrentView={setCurrentView} />}
       </main>
 
       {/* Edit Product Modal */}
@@ -2478,6 +2596,13 @@ export default function App() {
         isFirstOrder={isLoggedIn && userOrdersCount === 0}
         language={language}
         t={t}
+        checkoutAddress={checkoutAddress}
+        setCheckoutAddress={setCheckoutAddress}
+        isLoggedIn={isLoggedIn}
+        onLocationSelect={(location) => {
+          setCheckoutAddress(location.address);
+          setCheckoutLocation({ lat: location.lat, lng: location.lng });
+        }}
       />
 
       {/* Success Modal */}
@@ -2498,16 +2623,10 @@ export default function App() {
                   </div>
                 </div>
                 <h2 className="text-2xl font-bold mb-1">
-                  {language === 'ku' ? 'سوپاس بۆ کڕینت!' : 
-                   language === 'ar' ? 'شكراً لشرائك!' : 
-                   language === 'en' ? 'Thank you for your purchase!' : 
-                   'Satın aldığınız için teşekkürler!'}
+                  {t('thankYouPurchase')}
                 </h2>
                 <p className="text-gray-400 text-sm mb-6">
-                  {language === 'ku' ? 'داواکارییەکەت بە سەرکەوتوویی تۆمارکرا' : 
-                   language === 'ar' ? 'تم تسجيل طلبك بنجاح' : 
-                   language === 'en' ? 'Your order has been successfully registered' : 
-                   'Siparişiniz başarıyla kaydedildi'}
+                  {t('orderRegistered')}
                 </p>
               </div>
 

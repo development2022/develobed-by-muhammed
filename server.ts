@@ -1,6 +1,5 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import { createClient } from "@supabase/supabase-js";
 import path from "path";
 import { fileURLToPath } from "url";
 import multer from "multer";
@@ -13,44 +12,6 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Supabase Client Initialization
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
-
-let supabase: any = null;
-if (supabaseUrl && supabaseKey && !supabaseUrl.includes('YOUR_')) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey);
-  } catch (err) {
-    console.warn("Failed to initialize Supabase client:", err);
-  }
-}
-
-// Global state for Supabase health
-let isSupabaseHealthy = false;
-const checkSupabaseHealth = async () => {
-  if (!supabase) {
-    console.log("Supabase credentials not configured or invalid. Using SQLite.");
-    return false;
-  }
-  try {
-    // Check if essential tables exist
-    const tables = ['products', 'categories', 'promotions', 'settings', 'users'];
-    for (const table of tables) {
-      const { error } = await supabase.from(table).select("count", { count: "exact", head: true });
-      if (error) {
-        console.warn(`Supabase table '${table}' missing or inaccessible:`, error.message);
-        return false;
-      }
-    }
-    console.log("Supabase connection healthy. Using Supabase as primary database.");
-    return true;
-  } catch (err) {
-    console.warn("Supabase health check failed:", err);
-    return false;
-  }
-};
 
 // Twilio Client Lazy Initialization
 let twilioClient: any = null;
@@ -87,31 +48,8 @@ const PORT = 3000;
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Helper to upload to Supabase Storage with local fallback
-async function handleFileUpload(file: Express.Multer.File, bucket: string = 'uploads') {
-  try {
-    // Try Supabase first
-    if (supabaseUrl && supabaseKey && !supabaseUrl.includes('YOUR_')) {
-      const fileExt = path.extname(file.originalname);
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}${fileExt}`;
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, file.buffer, {
-          contentType: file.mimetype,
-          upsert: false
-        });
-
-      if (!error) {
-        const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(fileName);
-        return publicUrl;
-      }
-      console.warn("Supabase upload failed, falling back to local:", error.message);
-    }
-  } catch (err) {
-    console.warn("Supabase upload exception, falling back to local:", err);
-  }
-
-  // Local Fallback
+// Helper for local file upload
+async function handleFileUpload(file: Express.Multer.File) {
   try {
     const uploadsDir = path.join(__dirname, 'public', 'uploads');
     if (!fs.existsSync(uploadsDir)) {
@@ -127,7 +65,7 @@ async function handleFileUpload(file: Express.Multer.File, bucket: string = 'upl
     return `/uploads/${fileName}`;
   } catch (err: any) {
     console.error("Local upload failed:", err.message);
-    throw new Error("Failed to upload file to both Supabase and local storage");
+    throw new Error("Failed to upload file to local storage");
   }
 }
 
@@ -140,8 +78,6 @@ async function startServer() {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
 
-  isSupabaseHealthy = await checkSupabaseHealth();
-  
   app.use(express.json());
   app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
@@ -151,27 +87,6 @@ async function startServer() {
     console.log(`Login attempt for: ${username}`);
     
     try {
-      // 1. Try Supabase if healthy
-      if (isSupabaseHealthy) {
-        const { data: user, error } = await supabase
-          .from("users")
-          .select("*")
-          .eq("username", username)
-          .eq("password", password)
-          .single();
-
-        if (!error && user) {
-          console.log(`Supabase login successful: ${username}`);
-          const { password: _, ...userWithoutPassword } = user;
-          return res.json({ success: true, user: userWithoutPassword, token: "mock-token-" + user.id });
-        }
-        
-        if (error && !error.message.includes("cache") && !error.message.includes("not find")) {
-          console.warn(`Supabase login error for ${username}:`, error.message);
-        }
-      }
-
-      // 2. Fallback to SQLite
       console.log(`Attempting SQLite login for: ${username}`);
       const sqliteUser = db.prepare("SELECT * FROM users WHERE username = ? AND password = ?").get(username, password) as any;
       
@@ -181,11 +96,10 @@ async function startServer() {
         return res.json({ success: true, user: userWithoutPassword, token: "mock-token-" + sqliteUser.id });
       }
 
-      // 3. If both failed
       console.log(`Login failed for: ${username}`);
       res.status(401).json({ 
         success: false, 
-        message: isSupabaseHealthy ? "Invalid credentials" : "Login failed. Database is in local mode and user was not found." 
+        message: "Invalid credentials" 
       });
     } catch (error: any) {
       console.error(`Login exception for ${username}:`, error.message);
@@ -196,48 +110,17 @@ async function startServer() {
   app.post("/api/register", async (req, res) => {
     const { username, password, full_name, phone, address } = req.body;
     try {
-      // 1. Try Supabase if healthy
-      if (isSupabaseHealthy) {
-        const { data: newUser, error } = await supabase
-          .from("users")
-          .insert({
-            username,
-            password,
-            full_name,
-            phone: phone || null,
-            address: address || null,
-            is_admin: 0,
-            is_verified: 1
-          })
-          .select()
-          .single();
-
-        if (!error && newUser) {
-          const { password: _, ...userWithoutPassword } = newUser;
-          return res.json({ success: true, user: userWithoutPassword, token: "mock-token-" + newUser.id });
-        }
-        
-        if (error && error.message?.includes("unique")) {
-          return res.status(400).json({ success: false, message: "Username or phone already exists" });
-        }
+      const stmt = db.prepare("INSERT INTO users (username, password, full_name, phone, address, is_verified) VALUES (?, ?, ?, ?, ?, ?)");
+      const result = stmt.run(username, password, full_name, phone || null, address || null, 1);
+      
+      const newUser = db.prepare("SELECT * FROM users WHERE id = ?").get(result.lastInsertRowid) as any;
+      const { password: _, ...userWithoutPassword } = newUser;
+      return res.json({ success: true, user: userWithoutPassword, token: "mock-token-" + newUser.id });
+    } catch (sqliteErr: any) {
+      if (sqliteErr.message?.includes("UNIQUE")) {
+        return res.status(400).json({ success: false, message: "Username or phone already exists" });
       }
-
-      // 2. Fallback to SQLite
-      try {
-        const stmt = db.prepare("INSERT INTO users (username, password, full_name, phone, address, is_verified) VALUES (?, ?, ?, ?, ?, ?)");
-        const result = stmt.run(username, password, full_name, phone || null, address || null, 1);
-        
-        const newUser = db.prepare("SELECT * FROM users WHERE id = ?").get(result.lastInsertRowid) as any;
-        const { password: _, ...userWithoutPassword } = newUser;
-        return res.json({ success: true, user: userWithoutPassword, token: "mock-token-" + newUser.id });
-      } catch (sqliteErr: any) {
-        if (sqliteErr.message?.includes("UNIQUE")) {
-          return res.status(400).json({ success: false, message: "Username or phone already exists" });
-        }
-        throw sqliteErr;
-      }
-    } catch (error: any) {
-      console.error("Register error:", error.message);
+      console.error("Register error:", sqliteErr.message);
       res.status(500).json({ success: false, message: "Internal server error" });
     }
   });
@@ -251,11 +134,7 @@ async function startServer() {
     
     try {
       // Check if user exists
-      const { data: existingUser } = await supabase
-        .from("users")
-        .select("*")
-        .eq("phone", phone)
-        .maybeSingle();
+      const existingUser = db.prepare("SELECT * FROM users WHERE phone = ?").get(phone) as any;
 
       if (existingUser && existingUser.is_verified) {
         return res.status(400).json({ error: "Phone number already registered" });
@@ -279,16 +158,11 @@ async function startServer() {
       }
       
       if (existingUser) {
-        await supabase.from("users").update({ verification_code: code }).eq("phone", phone);
+        db.prepare("UPDATE users SET verification_code = ? WHERE phone = ?").run(code, phone);
       } else {
         const dummyUsername = `pending_${Date.now()}_${phone}`;
-        await supabase.from("users").insert({
-          username: dummyUsername,
-          password: 'pending',
-          phone,
-          verification_code: code,
-          is_verified: 0
-        });
+        db.prepare("INSERT INTO users (username, password, phone, verification_code, is_verified) VALUES (?, ?, ?, ?, ?)")
+          .run(dummyUsername, 'pending', phone, code, 0);
       }
       
       res.json({ 
@@ -304,15 +178,10 @@ async function startServer() {
   app.post("/api/register/verify-code", async (req, res) => {
     const { phone, code } = req.body;
     try {
-      const { data: user } = await supabase
-        .from("users")
-        .select("*")
-        .eq("phone", phone)
-        .eq("verification_code", code)
-        .maybeSingle();
+      const user = db.prepare("SELECT * FROM users WHERE phone = ? AND verification_code = ?").get(phone, code) as any;
 
       if (user) {
-        await supabase.from("users").update({ is_verified: 1 }).eq("phone", phone);
+        db.prepare("UPDATE users SET is_verified = 1 WHERE phone = ?").run(phone);
         res.json({ success: true });
       } else {
         res.status(400).json({ error: "Invalid verification code" });
@@ -325,28 +194,19 @@ async function startServer() {
   app.post("/api/register/complete", async (req, res) => {
     const { phone, username, password, full_name, address } = req.body;
     try {
-      const { data: user } = await supabase
-        .from("users")
-        .select("*")
-        .eq("phone", phone)
-        .eq("is_verified", 1)
-        .maybeSingle();
+      const user = db.prepare("SELECT * FROM users WHERE phone = ? AND is_verified = 1").get(phone) as any;
 
       if (!user) return res.status(400).json({ error: "Phone not verified" });
       
-      const { data: updatedUser, error } = await supabase
-        .from("users")
-        .update({ username, password, full_name, address })
-        .eq("phone", phone)
-        .select()
-        .single();
+      db.prepare("UPDATE users SET username = ?, password = ?, full_name = ?, address = ? WHERE phone = ?")
+        .run(username, password, full_name, address, phone);
         
-      if (error) throw error;
+      const updatedUser = db.prepare("SELECT * FROM users WHERE phone = ?").get(phone) as any;
 
       const { password: _, verification_code: __, ...userWithoutSecrets } = updatedUser;
       res.json({ success: true, user: userWithoutSecrets, token: "mock-token-" + updatedUser.id });
     } catch (error: any) {
-      if (error.message?.includes("unique")) {
+      if (error.message?.includes("UNIQUE")) {
         res.status(400).json({ error: "Username already exists" });
       } else {
         res.status(500).json({ error: error.message });
@@ -354,13 +214,27 @@ async function startServer() {
     }
   });
 
-  app.get("/api/categories", async (req, res) => {
+  app.put("/api/users/profile", async (req, res) => {
+    const { userId, full_name, phone, address } = req.body;
     try {
-      if (isSupabaseHealthy) {
-        const { data: categories, error } = await supabase.from("categories").select("*");
-        if (!error) return res.json(categories || []);
+      db.prepare("UPDATE users SET full_name = ?, phone = ?, address = ? WHERE id = ?")
+        .run(full_name, phone, address, userId);
+      
+      const updatedUser = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+      if (updatedUser) {
+        const { password: _, ...userWithoutPassword } = updatedUser;
+        return res.json({ success: true, user: userWithoutPassword });
       }
       
+      res.status(404).json({ success: false, message: "User not found" });
+    } catch (error: any) {
+      console.error("Profile update error:", error.message);
+      res.status(500).json({ success: false, message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/categories", async (req, res) => {
+    try {
       const categories = db.prepare("SELECT * FROM categories").all();
       res.json(categories || []);
     } catch (error: any) {
@@ -371,11 +245,6 @@ async function startServer() {
   app.post("/api/categories", async (req, res) => {
     const { id, name, name_ar, name_en, name_tr, icon } = req.body;
     try {
-      if (isSupabaseHealthy) {
-        const { error } = await supabase.from("categories").insert({ id, name, name_ar, name_en, name_tr, icon });
-        if (!error) return res.json({ success: true });
-      }
-      
       db.prepare("INSERT OR REPLACE INTO categories (id, name, name_ar, name_en, name_tr, icon) VALUES (?, ?, ?, ?, ?, ?)")
         .run(id, name, name_ar, name_en, name_tr, icon);
       res.json({ success: true });
@@ -388,11 +257,6 @@ async function startServer() {
     const { id } = req.params;
     const { name, name_ar, name_en, name_tr, icon } = req.body;
     try {
-      if (isSupabaseHealthy) {
-        const { error } = await supabase.from("categories").update({ name, name_ar, name_en, name_tr, icon }).eq("id", id);
-        if (!error) return res.json({ success: true });
-      }
-      
       db.prepare("UPDATE categories SET name = ?, name_ar = ?, name_en = ?, name_tr = ?, icon = ? WHERE id = ?")
         .run(name, name_ar, name_en, name_tr, icon, id);
       res.json({ success: true });
@@ -404,12 +268,6 @@ async function startServer() {
   app.delete("/api/categories/:id", async (req, res) => {
     const { id } = req.params;
     try {
-      if (isSupabaseHealthy) {
-        await supabase.from("products").delete().eq("category_id", id);
-        await supabase.from("categories").delete().eq("id", id);
-        return res.json({ success: true });
-      }
-      
       db.prepare("DELETE FROM products WHERE category_id = ?").run(id);
       db.prepare("DELETE FROM categories WHERE id = ?").run(id);
       res.json({ success: true });
@@ -422,21 +280,6 @@ async function startServer() {
   app.get("/api/products", async (req, res) => {
     const { category } = req.query;
     try {
-      if (isSupabaseHealthy) {
-        let query = supabase.from("products").select("*");
-        if (category) {
-          query = query.eq("category_id", category);
-        }
-        const { data: products, error } = await query;
-        if (!error) {
-          const parsedProducts = (products || []).map((p: any) => ({
-            ...p,
-            weights: typeof p.weights === 'string' ? JSON.parse(p.weights) : p.weights
-          }));
-          return res.json(parsedProducts);
-        }
-      }
-
       let sqliteQuery = "SELECT * FROM products";
       const params: any[] = [];
       if (category) {
@@ -468,28 +311,6 @@ async function startServer() {
     const { category_id, name, name_ar, name_en, name_tr, price, old_price, discount, image, weights, is_limited } = req.body;
     
     try {
-      if (isSupabaseHealthy) {
-        const { data, error } = await supabase
-          .from("products")
-          .insert({
-            category_id,
-            name,
-            name_ar,
-            name_en,
-            name_tr,
-            price,
-            old_price: old_price || null,
-            discount: discount || null,
-            image,
-            weights: JSON.stringify(weights),
-            is_limited: is_limited ? 1 : 0
-          })
-          .select()
-          .single();
-        
-        if (!error) return res.json({ id: data.id, success: true });
-      }
-      
       const result = db.prepare(`
         INSERT INTO products (category_id, name, name_ar, name_en, name_tr, price, old_price, discount, image, weights, is_limited)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -506,27 +327,6 @@ async function startServer() {
     const { category_id, name, name_ar, name_en, name_tr, price, old_price, discount, image, weights, is_limited } = req.body;
     
     try {
-      if (isSupabaseHealthy) {
-        const { error } = await supabase
-          .from("products")
-          .update({
-            category_id,
-            name,
-            name_ar,
-            name_en,
-            name_tr,
-            price,
-            old_price: old_price || null,
-            discount: discount || null,
-            image,
-            weights: JSON.stringify(weights),
-            is_limited: is_limited ? 1 : 0
-          })
-          .eq("id", id);
-        
-        if (!error) return res.json({ success: true });
-      }
-      
       db.prepare(`
         UPDATE products SET 
           category_id = ?, name = ?, name_ar = ?, name_en = ?, name_tr = ?, 
@@ -544,11 +344,6 @@ async function startServer() {
   app.delete("/api/products/:id", async (req, res) => {
     const { id } = req.params;
     try {
-      if (isSupabaseHealthy) {
-        const { error } = await supabase.from("products").delete().eq("id", id);
-        if (!error) return res.json({ success: true });
-      }
-      
       db.prepare("DELETE FROM products WHERE id = ?").run(id);
       res.json({ success: true });
     } catch (error: any) {
@@ -559,17 +354,6 @@ async function startServer() {
 
   app.get("/api/settings", async (req, res) => {
     try {
-      if (isSupabaseHealthy) {
-        const { data: settings, error } = await supabase.from("settings").select("*");
-        if (!error) {
-          const settingsMap = (settings || []).reduce((acc: any, curr: any) => {
-            acc[curr.key] = curr.value;
-            return acc;
-          }, {});
-          return res.json(settingsMap);
-        }
-      }
-
       const settings = db.prepare("SELECT * FROM settings").all() as any[];
       const settingsMap = settings.reduce((acc: any, curr: any) => {
         acc[curr.key] = curr.value;
@@ -584,11 +368,6 @@ async function startServer() {
   app.post("/api/settings", async (req, res) => {
     const { key, value } = req.body;
     try {
-      if (isSupabaseHealthy) {
-        const { error } = await supabase.from("settings").upsert({ key, value });
-        if (!error) return res.json({ success: true });
-      }
-      
       db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
         .run(key, value);
       res.json({ success: true });
@@ -599,11 +378,6 @@ async function startServer() {
 
   app.get("/api/promotions", async (req, res) => {
     try {
-      if (isSupabaseHealthy) {
-        const { data: promos, error } = await supabase.from("promotions").select("*");
-        if (!error) return res.json(promos || []);
-      }
-
       const promos = db.prepare("SELECT * FROM promotions").all();
       res.json(promos || []);
     } catch (error: any) {
@@ -615,11 +389,6 @@ async function startServer() {
     const { id } = req.params;
     const { title, title_ar, title_en, title_tr, image } = req.body;
     try {
-      if (isSupabaseHealthy) {
-        const { error } = await supabase.from("promotions").update({ title, title_ar, title_en, title_tr, image }).eq("id", id);
-        if (!error) return res.json({ success: true });
-      }
-      
       db.prepare("UPDATE promotions SET title = ?, title_ar = ?, title_en = ?, title_tr = ?, image = ? WHERE id = ?")
         .run(title, title_ar, title_en, title_tr, image, id);
       res.json({ success: true });
@@ -630,11 +399,6 @@ async function startServer() {
 
   app.get("/api/reviews", async (req, res) => {
     try {
-      if (isSupabaseHealthy && supabase) {
-        const { data: reviews, error } = await supabase.from("reviews").select("*").order("id", { ascending: false });
-        if (!error) return res.json(reviews || []);
-      }
-      
       const reviews = db.prepare("SELECT * FROM reviews ORDER BY id DESC").all();
       res.json(reviews || []);
     } catch (error: any) {
@@ -646,11 +410,6 @@ async function startServer() {
     const { rating, comment } = req.body;
     const date = new Date().toISOString();
     try {
-      if (isSupabaseHealthy && supabase) {
-        const { error } = await supabase.from("reviews").insert({ rating, comment, date });
-        if (!error) return res.json({ success: true });
-      }
-      
       db.prepare("INSERT INTO reviews (rating, comment, date) VALUES (?, ?, ?)")
         .run(rating, comment, date);
       res.json({ success: true });
@@ -661,32 +420,6 @@ async function startServer() {
 
   app.get("/api/orders", async (req, res) => {
     try {
-      if (isSupabaseHealthy && supabase) {
-        const { data: orders, error } = await supabase
-          .from("orders")
-          .select(`
-            *,
-            users (
-              username,
-              full_name,
-              phone,
-              address
-            )
-          `)
-          .order("id", { ascending: false });
-
-        if (!error) {
-          return res.json((orders || []).map((o: any) => ({ 
-            ...o, 
-            items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
-            username: o.users?.username,
-            full_name: o.users?.full_name,
-            phone: o.users?.phone,
-            address: o.users?.address
-          })));
-        }
-      }
-
       const orders = db.prepare(`
         SELECT o.*, u.username, u.full_name, u.phone, u.address 
         FROM orders o 
@@ -707,26 +440,6 @@ async function startServer() {
     const { user_id, items, total_price, delivery_fee, discount_applied, promo_code, location_url } = req.body;
     const date = new Date().toISOString();
     try {
-      if (isSupabaseHealthy && supabase) {
-        const { data, error } = await supabase
-          .from("orders")
-          .insert({
-            user_id,
-            items: JSON.stringify(items),
-            total_price,
-            delivery_fee,
-            discount_applied: discount_applied || 0,
-            promo_code: promo_code || null,
-            status: 'pending',
-            date,
-            location_url
-          })
-          .select()
-          .single();
-
-        if (!error) return res.json({ success: true, orderId: data.id });
-      }
-
       const result = db.prepare(`
         INSERT INTO orders (user_id, items, total_price, delivery_fee, discount_applied, promo_code, status, date, location_url)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -734,6 +447,7 @@ async function startServer() {
       
       res.json({ success: true, orderId: result.lastInsertRowid });
     } catch (error: any) {
+      console.error("Order save error:", error.message);
       res.status(500).json({ error: error.message });
     }
   });
@@ -742,11 +456,6 @@ async function startServer() {
     const { id } = req.params;
     const { status } = req.body;
     try {
-      if (isSupabaseHealthy && supabase) {
-        const { error } = await supabase.from("orders").update({ status }).eq("id", id);
-        if (!error) return res.json({ success: true });
-      }
-      
       db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, id);
       res.json({ success: true });
     } catch (error: any) {
@@ -757,14 +466,6 @@ async function startServer() {
   // Polls API
   app.get("/api/polls", async (req, res) => {
     try {
-      if (isSupabaseHealthy && supabase) {
-        const { data: polls, error } = await supabase
-          .from("polls")
-          .select("*")
-          .order("created_at", { ascending: false });
-        if (!error) return res.json(polls || []);
-      }
-      
       const polls = db.prepare("SELECT * FROM polls ORDER BY created_at DESC").all();
       res.json(polls || []);
     } catch (error: any) {
@@ -775,15 +476,6 @@ async function startServer() {
   app.post("/api/polls", async (req, res) => {
     const { question, options } = req.body;
     try {
-      if (isSupabaseHealthy && supabase) {
-        const { data, error } = await supabase
-          .from("polls")
-          .insert({ question, options })
-          .select()
-          .single();
-        if (!error) return res.json({ success: true, poll: data });
-      }
-      
       const result = db.prepare("INSERT INTO polls (question, options) VALUES (?, ?)")
         .run(question, JSON.stringify(options));
       const poll = db.prepare("SELECT * FROM polls WHERE id = ?").get(result.lastInsertRowid);
@@ -797,28 +489,6 @@ async function startServer() {
     const { id } = req.params;
     const { optionIndex } = req.body;
     try {
-      if (isSupabaseHealthy && supabase) {
-        const { data: poll, error: fetchError } = await supabase
-          .from("polls")
-          .select("*")
-          .eq("id", id)
-          .single();
-        
-        if (!fetchError) {
-          const options = [...poll.options];
-          if (options[optionIndex]) {
-            options[optionIndex].votes = (options[optionIndex].votes || 0) + 1;
-          }
-          
-          const { error: updateError } = await supabase
-            .from("polls")
-            .update({ options })
-            .eq("id", id);
-            
-          if (!updateError) return res.json({ success: true });
-        }
-      }
-      
       const poll = db.prepare("SELECT * FROM polls WHERE id = ?").get(id) as any;
       if (poll) {
         const options = JSON.parse(poll.options);
@@ -838,11 +508,6 @@ async function startServer() {
   app.delete("/api/polls/:id", async (req, res) => {
     const { id } = req.params;
     try {
-      if (isSupabaseHealthy && supabase) {
-        const { error } = await supabase.from("polls").delete().eq("id", id);
-        if (!error) return res.json({ success: true });
-      }
-      
       db.prepare("DELETE FROM polls WHERE id = ?").run(id);
       res.json({ success: true });
     } catch (error: any) {
@@ -850,96 +515,10 @@ async function startServer() {
     }
   });
 
-  // Debug Route (Remove after use)
-  app.get("/api/debug/users", async (req, res) => {
-    try {
-      const { data: users, error } = await supabase.from("users").select("*");
-      if (error) throw error;
-      res.json(users);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Diagnostic Route
-  app.get("/api/debug/status", async (req, res) => {
-    try {
-      const results: any = {
-        env: {
-          supabaseUrl: !!process.env.SUPABASE_URL || !!process.env.VITE_SUPABASE_URL,
-          supabaseKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY || !!process.env.SUPABASE_ANON_KEY || !!process.env.VITE_SUPABASE_ANON_KEY,
-        },
-        tables: {}
-      };
-
-      const tables = ['users', 'categories', 'products', 'orders', 'polls'];
-      for (const table of tables) {
-        const { error } = await supabase.from(table).select('count', { count: 'exact', head: true });
-        results.tables[table] = error ? { exists: false, error: error.message } : { exists: true };
-      }
-
-      res.json(results);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Temporary Setup Route (Remove after use)
-  app.post("/api/setup/admin", async (req, res) => {
-    const { username, password } = req.body;
-    try {
-      console.log(`Setup attempt for admin: ${username}`);
-      
-      // 1. Try Supabase first
-      const { error: tableError } = await supabase.from("users").select("count", { count: "exact", head: true });
-      if (!tableError) {
-        const { data: user, error: fetchError } = await supabase
-          .from("users")
-          .select("*")
-          .eq("username", username)
-          .maybeSingle();
-
-        if (!fetchError) {
-          if (user) {
-            await supabase.from("users").update({ is_admin: 1, password }).eq("username", username);
-          } else {
-            await supabase.from("users").insert({
-              username,
-              password,
-              full_name: "Admin User",
-              phone: "0000000000",
-              address: "Admin Office",
-              is_admin: 1,
-              is_verified: 1
-            });
-          }
-        }
-      }
-
-      // 2. Always update SQLite as well
-      try {
-        const stmt = db.prepare("INSERT OR REPLACE INTO users (username, password, full_name, is_admin, is_verified) VALUES (?, ?, ?, ?, ?)");
-        stmt.run(username, password, "Super Admin", 1, 1);
-        console.log(`SQLite setup successful for ${username}`);
-      } catch (sqliteErr: any) {
-        console.error("SQLite setup error:", sqliteErr.message);
-      }
-
-      res.json({ success: true, message: `User ${username} setup as admin.` });
-    } catch (error: any) {
-      console.error("Setup error:", error.message);
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
   // User Management API
   app.get("/api/users", async (req, res) => {
     try {
-      const { data: users, error } = await supabase
-        .from("users")
-        .select("id, username, full_name, phone, address, is_admin, is_verified")
-        .order("id", { ascending: true });
-      if (error) throw error;
+      const users = db.prepare("SELECT id, username, full_name, phone, address, is_admin, is_verified FROM users ORDER BY id ASC").all();
       res.json(users || []);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -950,11 +529,7 @@ async function startServer() {
     const { id } = req.params;
     const { is_admin } = req.body;
     try {
-      const { error } = await supabase
-        .from("users")
-        .update({ is_admin: is_admin ? 1 : 0 })
-        .eq("id", id);
-      if (error) throw error;
+      db.prepare("UPDATE users SET is_admin = ? WHERE id = ?").run(is_admin ? 1 : 0, id);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

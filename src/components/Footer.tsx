@@ -4,9 +4,10 @@ import { Facebook, Instagram, Twitter, Phone, Mail, MapPin } from 'lucide-react'
 interface FooterProps {
   appLogo?: string;
   t: (key: string) => string;
+  setCurrentView: (view: any) => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ appLogo, t }) => {
+export const Footer: React.FC<FooterProps> = ({ appLogo, t, setCurrentView }) => {
   return (
     <footer className="bg-[#1a1a1a] border-t border-white/5 pt-16 pb-32 lg:pb-16 px-6">
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
@@ -42,6 +43,14 @@ export const Footer: React.FC<FooterProps> = ({ appLogo, t }) => {
             <li><a href="#" className="hover:text-emerald-600 transition-colors">{t('allProducts')}</a></li>
             <li><a href="#" className="hover:text-emerald-600 transition-colors">{t('specialOffers')}</a></li>
             <li><a href="#" className="hover:text-emerald-600 transition-colors">{t('about')}</a></li>
+            <li>
+              <button 
+                onClick={() => setCurrentView('location_promo')}
+                className="hover:text-emerald-600 transition-colors text-left"
+              >
+                Location Widget
+              </button>
+            </li>
           </ul>
         </div>
 

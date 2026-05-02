@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Home, ShoppingCart, Info, User, Languages, X, Video } from 'lucide-react';
+import { Home, ShoppingCart, Info, User, Languages, X, Video, MapPin } from 'lucide-react';
 
 interface SideMenuProps {
   showSideMenu: boolean;
@@ -95,6 +95,13 @@ export const SideMenu: React.FC<SideMenuProps> = ({
               >
                 <Video size={22} />
                 <span className="font-medium">{t('videoAiTitle')}</span>
+              </button>
+              <button 
+                onClick={() => { setCurrentView('location_promo'); setShowSideMenu(false); }}
+                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-colors ${currentView === 'location_promo' ? 'bg-[#8B2323] text-white' : 'hover:bg-white/5 text-gray-300'}`}
+              >
+                <MapPin size={22} />
+                <span className="font-medium">Location Widget</span>
               </button>
               <button 
                 className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 transition-colors text-gray-300"
