@@ -194,18 +194,51 @@ export default function App() {
           setCurrentView('verification');
           return;
         }
-        const firebaseUser: UserType = {
-          id: 0,
-          username: user.email || '',
-          full_name: user.displayName || user.email?.split('@')[0] || '',
-          phone: '',
-          address: '',
-          role: 'user',
-          is_admin: 0
-        };
-        setIsLoggedIn(true);
-        setCurrentUser(firebaseUser);
-        localStorage.setItem('currentUser', JSON.stringify(firebaseUser));
+
+        try {
+          // Sync with backend to get real ID
+          const syncResponse = await fetch('/api/auth/google-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: user.email,
+              full_name: user.displayName || user.email?.split('@')[0] || ''
+            })
+          });
+          
+          if (syncResponse.ok) {
+            const syncData = await syncResponse.json();
+            const dbUser = syncData.user;
+            
+            const firebaseUser: UserType = {
+              id: dbUser.id,
+              username: dbUser.username,
+              full_name: dbUser.full_name,
+              phone: dbUser.phone || '',
+              address: dbUser.address || '',
+              role: dbUser.is_admin ? 'admin' : 'user',
+              is_admin: dbUser.is_admin
+            };
+            setIsLoggedIn(true);
+            setCurrentUser(firebaseUser);
+            localStorage.setItem('currentUser', JSON.stringify(firebaseUser));
+          } else {
+            // Fallback to local state if sync fails
+            const firebaseUser: UserType = {
+              id: 0,
+              username: user.email || '',
+              full_name: user.displayName || user.email?.split('@')[0] || '',
+              phone: '',
+              address: '',
+              role: 'user',
+              is_admin: 0
+            };
+            setIsLoggedIn(true);
+            setCurrentUser(firebaseUser);
+          }
+        } catch (err) {
+          console.error("Auth sync error:", err);
+        }
       } else {
         // Only clear if we were logged in via Firebase
         // We can check if the current user is a firebase user (id: 0)
@@ -624,15 +657,33 @@ export default function App() {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
+      
+      // Sync with backend to get correct ID
+      const syncResponse = await fetch('/api/auth/google-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          full_name: user.displayName || user.email?.split('@')[0] || ''
+        })
+      });
+      
+      if (!syncResponse.ok) {
+        throw new Error('Failed to sync user with backend');
+      }
+      
+      const syncData = await syncResponse.json();
+      const dbUser = syncData.user;
+
       setIsLoggedIn(true);
       setCurrentUser({
-        id: 0,
-        username: user.email || '',
-        full_name: user.displayName || user.email?.split('@')[0] || '',
-        phone: '',
-        address: '',
-        role: 'user',
-        is_admin: 0
+        id: dbUser.id,
+        username: dbUser.username,
+        full_name: dbUser.full_name,
+        phone: dbUser.phone || '',
+        address: dbUser.address || '',
+        role: dbUser.is_admin ? 'admin' : 'user',
+        is_admin: dbUser.is_admin
       });
       setCurrentView('home');
       showToastMsg(`بەخێربێیت ${user.displayName || user.email}`);
@@ -969,6 +1020,11 @@ export default function App() {
     const whatsappNumber = "9647504394038";
     
     const sendOrder = async (locationUrl?: string) => {
+      if (!currentUser) {
+        showToastMsg(t('pleaseLoginFirst'));
+        setCurrentView('login');
+        return;
+      }
       // Save to DB first
       try {
         const orderResponse = await fetch('/api/orders', {
@@ -976,6 +1032,7 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             user_id: currentUser.id,
+            username: currentUser.username,
             items: cart.map(item => ({
               id: item.id,
               name: item.name,
@@ -992,7 +1049,8 @@ export default function App() {
         });
         
         if (!orderResponse.ok) {
-          throw new Error('Failed to save order');
+          const errorData = await orderResponse.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to save order');
         }
 
         const orderData = await orderResponse.json();

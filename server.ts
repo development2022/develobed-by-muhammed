@@ -251,6 +251,52 @@ async function startServer() {
     }
   });
 
+  app.post("/api/auth/google-sync", async (req, res) => {
+    const { email, full_name } = req.body;
+    const username = email;
+    const password = "GOOGLE_AUTH_USER_" + Math.random().toString(36).substring(7);
+    
+    try {
+      if (isSupabaseHealthy) {
+        const { data: existingUser, error: findError } = await supabase
+          .from("users")
+          .select("*")
+          .eq("username", username)
+          .maybeSingle();
+        
+        if (existingUser) {
+          const { password: _, ...userWithoutPassword } = existingUser;
+          return res.json({ success: true, user: userWithoutPassword });
+        }
+        
+        const { data: newUser, error: insertError } = await supabase
+          .from("users")
+          .insert({ username, password, full_name, is_verified: 1 })
+          .select()
+          .single();
+          
+        if (!insertError && newUser) {
+          const { password: _, ...userWithoutPassword } = newUser;
+          return res.json({ success: true, user: userWithoutPassword });
+        }
+        if (insertError) console.error("Supabase Google sync insert error:", insertError);
+      }
+      
+      let sqliteUser = db.prepare("SELECT * FROM users WHERE username = ?").get(username) as any;
+      if (!sqliteUser) {
+        const result = db.prepare("INSERT INTO users (username, password, full_name, is_verified) VALUES (?, ?, ?, ?)")
+          .run(username, password, full_name, 1);
+        sqliteUser = db.prepare("SELECT * FROM users WHERE id = ?").get(result.lastInsertRowid);
+      }
+      
+      const { password: _, ...userWithoutPassword } = sqliteUser;
+      res.json({ success: true, user: userWithoutPassword });
+    } catch (err: any) {
+      console.error("Google sync exception:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post("/api/register/request-code", async (req, res) => {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: "Phone number is required" });
@@ -713,14 +759,23 @@ async function startServer() {
   });
 
   app.post("/api/orders", async (req, res) => {
-    const { user_id, items, total_price, delivery_fee, discount_applied, promo_code, location_url } = req.body;
+    const { user_id, username, items, total_price, delivery_fee, discount_applied, promo_code, location_url } = req.body;
     const date = new Date().toISOString();
+    
+    let resolvedUserId = user_id;
+
     try {
       if (isSupabaseHealthy && supabase) {
+        // If user_id is missing or suspicious (like 0), try to resolve via username
+        if (!resolvedUserId || resolvedUserId === 0) {
+          const { data: u } = await supabase.from("users").select("id").eq("username", username).maybeSingle();
+          if (u) resolvedUserId = u.id;
+        }
+
         const { data, error } = await supabase
           .from("orders")
           .insert({
-            user_id,
+            user_id: resolvedUserId,
             items: JSON.stringify(items),
             total_price,
             delivery_fee,
@@ -734,15 +789,36 @@ async function startServer() {
           .single();
 
         if (!error) return res.json({ success: true, orderId: data.id });
+        console.warn("Supabase order save failed, falling back to local:", error.message);
+      }
+
+      // SQLite Fallback
+      // Resolve SQLite-specific user ID via username to avoid foreign key errors from Supabase IDs
+      if (username) {
+        const sqliteUser = db.prepare("SELECT id FROM users WHERE username = ?").get(username) as any;
+        if (sqliteUser) {
+          resolvedUserId = sqliteUser.id;
+        } else {
+          // If user doesn't exist in SQLite yet, they might be a Google user only in Supabase
+          // Try to create them in SQLite too
+          try {
+            const tempPassword = "TEMP_" + Math.random().toString(36).substring(7);
+            const insertResult = db.prepare("INSERT INTO users (username, password, is_verified) VALUES (?, ?, 1)").run(username, tempPassword);
+            resolvedUserId = insertResult.lastInsertRowid;
+          } catch (e) {
+            console.error("Failed to auto-create user in SQLite fallback:", e);
+          }
+        }
       }
 
       const result = db.prepare(`
         INSERT INTO orders (user_id, items, total_price, delivery_fee, discount_applied, promo_code, status, date, location_url)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(user_id, JSON.stringify(items), total_price, delivery_fee, discount_applied || 0, promo_code || null, 'pending', date, location_url);
+      `).run(resolvedUserId, JSON.stringify(items), total_price, delivery_fee, discount_applied || 0, promo_code || null, 'pending', date, location_url);
       
       res.json({ success: true, orderId: result.lastInsertRowid });
     } catch (error: any) {
+      console.error("Order save exception:", error);
       res.status(500).json({ error: error.message });
     }
   });
