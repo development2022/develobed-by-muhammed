@@ -50,13 +50,6 @@ db.exec(`
     FOREIGN KEY (category_id) REFERENCES categories(id)
   );
 
-  CREATE TABLE IF NOT EXISTS reviews (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    rating INTEGER NOT NULL,
-    comment TEXT,
-    date DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
   CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -67,7 +60,8 @@ db.exec(`
     promo_code TEXT,
     status TEXT DEFAULT 'pending',
     location_url TEXT,
-    date DATETIME DEFAULT CURRENT_TIMESTAMP
+    date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
   );
 
   CREATE TABLE IF NOT EXISTS settings (
@@ -86,6 +80,13 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rating INTEGER NOT NULL,
+    comment TEXT,
+    date DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS polls (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     question TEXT NOT NULL,
@@ -96,7 +97,6 @@ db.exec(`
 
 // Insert default admin if not exists
 const stmt = db.prepare("INSERT OR IGNORE INTO users (username, password, full_name, is_admin, is_verified) VALUES (?, ?, ?, ?, ?)");
-stmt.run('admin@admin.com', 'admin', 'System Administrator', 1, 1);
 stmt.run('admin', 'admin', 'System Administrator', 1, 1);
 
 export default db;

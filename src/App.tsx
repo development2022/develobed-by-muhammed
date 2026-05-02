@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Heart, Bell, ChevronLeft, ChevronRight, 
@@ -24,6 +24,7 @@ import {
   signInWithPopup
 } from 'firebase/auth';
 
+import { soundService } from './lib/sounds';
 import { Category, Promotion, Product, CartItem, User as UserType, Review } from './types';
 import { translations, Language } from './translations';
 import { Toast } from './components/Toast';
@@ -51,7 +52,6 @@ import { TopBanner } from './components/TopBanner';
 import { Login } from './components/Auth/Login';
 import { Register } from './components/Auth/Register';
 import { Verification } from './components/Auth/Verification';
-import LocationPromoPage from './LocationPromoPage';
 
 async function translateText(text: string): Promise<{ ar: string, en: string, tr: string }> {
   if (!text) return { ar: '', en: '', tr: '' };
@@ -97,7 +97,7 @@ export default function App() {
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState({ show: false, message: '' });
-  const [currentView, setCurrentView] = useState<'home' | 'admin' | 'login' | 'profile' | 'register' | 'admin_login' | 'video_ai' | 'location_promo'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'admin' | 'login' | 'profile' | 'register' | 'admin_login' | 'video_ai'>('home');
   const [adminTab, setAdminTab] = useState<'items' | 'manage_cats' | 'new_cat' | 'settings' | 'promotions' | 'delivery' | 'orders'>('items');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
@@ -128,19 +128,28 @@ export default function App() {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const prevOrdersCountRef = useRef(orders.length);
+
+  // Sound Notification for New Orders
+  useEffect(() => {
+    if (orders.length > prevOrdersCountRef.current && prevOrdersCountRef.current !== 0) {
+      soundService.playOrderSuccess();
+      showToastMsg('داواکارییەکی نوێ گەیشت! / New Order Received!');
+    }
+    prevOrdersCountRef.current = orders.length;
+  }, [orders.length]);
+
+  // Admin polling for orders
+  useEffect(() => {
+    if (currentUser?.role === 'admin' || currentUser?.is_admin === 1) {
+      fetchOrders();
+      const interval = setInterval(fetchOrders, 30000); // Poll every 30 seconds
+      return () => clearInterval(interval);
+    }
+  }, [currentUser]);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
   const [language, setLanguage] = useState<Language>('ku');
   const [hasApiKey, setHasApiKey] = useState(true);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [editProfileData, setEditProfileData] = useState({ full_name: '', phone: '', address: '' });
-  const [checkoutAddress, setCheckoutAddress] = useState('');
-  const [checkoutLocation, setCheckoutLocation] = useState<{ lat: number; lng: number } | null>(null);
-
-  useEffect(() => {
-    if (currentUser) {
-      setCheckoutAddress(currentUser.address || '');
-    }
-  }, [currentUser]);
 
   useEffect(() => {
     const checkApiKey = async () => {
@@ -161,46 +170,6 @@ export default function App() {
     if (window.aistudio) {
       await window.aistudio.openSelectKey();
       setHasApiKey(true);
-    }
-  };
-
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser) return;
-
-    try {
-      const response = await fetch('/api/users/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: currentUser.id,
-          ...editProfileData
-        })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setCurrentUser(data.user);
-        localStorage.setItem('currentUser', JSON.stringify(data.user));
-        setIsEditingProfile(false);
-        showToastMsg(t('profileUpdated'));
-      } else {
-        showToastMsg(data.message || t('profileUpdateError'));
-      }
-    } catch (error) {
-      console.error('Update profile error:', error);
-      showToastMsg(t('profileUpdateError'));
-    }
-  };
-
-  const startEditingProfile = () => {
-    if (currentUser) {
-      setEditProfileData({
-        full_name: currentUser.full_name || '',
-        phone: currentUser.phone || '',
-        address: currentUser.address || ''
-      });
-      setIsEditingProfile(true);
     }
   };
 
@@ -528,9 +497,7 @@ export default function App() {
       const errorCode = error.code;
       const errorMessage = error.message || '';
       if (errorCode === 'auth/invalid-credential' || errorCode === 'auth/user-not-found' || errorCode === 'auth/wrong-password') {
-        showToastMsg(language === 'en' 
-          ? "Invalid credentials. Admin? Try 'admin@admin.com' / 'admin'" 
-          : "ئیمەیڵ یان وشەی تێپەڕ هەڵەیە. ئەدمین؟ تاقی بکەرەوە 'admin@admin.com' / 'admin'");
+        showToastMsg("Email or password is incorrect");
       } else {
         showToastMsg(errorMessage || "Email or password is incorrect");
       }
@@ -990,38 +957,11 @@ export default function App() {
       return;
     }
 
-    if (!checkoutAddress.trim()) {
-      showToastMsg(t('provideAddress'));
-      return;
-    }
-
     const whatsappNumber = "9647504394038";
     
-    const sendOrder = async () => {
-      const locationUrl = checkoutLocation 
-        ? `https://www.google.com/maps?q=${checkoutLocation.lat},${checkoutLocation.lng}`
-        : undefined;
-
+    const sendOrder = async (locationUrl?: string) => {
       // Save to DB first
       try {
-        // Update user address if it was empty or changed
-        if (checkoutAddress !== currentUser.address) {
-          await fetch('/api/users/profile', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: currentUser.id,
-              full_name: currentUser.full_name,
-              phone: currentUser.phone,
-              address: checkoutAddress
-            })
-          });
-          // Update local state
-          const updatedUser = { ...currentUser, address: checkoutAddress };
-          setCurrentUser(updatedUser);
-          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-        }
-
         const orderResponse = await fetch('/api/orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1053,7 +993,7 @@ export default function App() {
         
         message += `👤 *${t('fullName')}*: ${currentUser.full_name}\n`;
         message += `📞 *${t('phone')}*: ${currentUser.phone}\n`;
-        message += `🏠 *${t('address')}*: ${checkoutAddress}\n\n`;
+        message += `🏠 *${t('address')}*: ${currentUser.address}\n\n`;
 
         cart.forEach((item, index) => {
           message += `${index + 1}. *${item.name}*\n`;
@@ -1079,6 +1019,8 @@ export default function App() {
         
         window.open(whatsappUrl, '_blank');
         
+        soundService.playOrderSuccess();
+
         setLastOrder([...cart]);
         setShowCart(false);
         setShowCheckoutSuccess(true);
@@ -1091,7 +1033,24 @@ export default function App() {
       }
     };
 
-    sendOrder();
+    if ("geolocation" in navigator) {
+      showToastMsg("Getting location...");
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const locationUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+          sendOrder(locationUrl);
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+          showToastMsg("Could not get location. Sending without it.");
+          sendOrder();
+        },
+        { timeout: 10000 }
+      );
+    } else {
+      sendOrder();
+    }
   };
   
   const validatePromoCode = (code: string) => {
@@ -1207,13 +1166,13 @@ export default function App() {
       />
 
       {!hasApiKey && (
-        <div className="bg-emerald-600/10 border-b border-emerald-600/20 px-4 py-2 flex items-center justify-between gap-4 sticky top-14 z-40 backdrop-blur-md">
-          <p className="text-xs text-emerald-600 font-medium">
+        <div className="bg-red-600/10 border-b border-red-600/20 px-4 py-2 flex items-center justify-between gap-4 sticky top-14 z-40 backdrop-blur-md">
+          <p className="text-xs text-red-600 font-medium">
             {language === 'en' ? 'Gemini API key is required for AI features.' : 'کۆدی Gemini API پێویستە بۆ تایبەتمەندییەکانی ژیری دەستکرد.'}
           </p>
           <button 
             onClick={handleOpenKeyDialog}
-            className="text-[10px] bg-emerald-600 text-white px-3 py-1 rounded-lg font-bold uppercase tracking-wider hover:bg-emerald-700 transition-colors shrink-0"
+            className="text-[10px] bg-red-600 text-white px-3 py-1 rounded-lg font-bold uppercase tracking-wider hover:bg-red-700 transition-colors shrink-0"
           >
             {language === 'en' ? 'Select Key' : 'هەڵبژاردنی کۆد'}
           </button>
@@ -1287,9 +1246,9 @@ export default function App() {
                         <h2 className="text-2xl font-black tracking-tighter uppercase">{t('limitedTimeOffers')}</h2>
                         <p className="text-xs text-gray-500 font-medium uppercase tracking-widest">{t('limitedTime')}</p>
                       </div>
-                      <div className="flex items-center gap-2 bg-emerald-600/10 px-3 py-1.5 rounded-full border border-emerald-600/20">
-                        <Clock size={14} className="text-emerald-600 animate-pulse" />
-                        <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Ends in: 02:45:12</span>
+                      <div className="flex items-center gap-2 bg-red-600/10 px-3 py-1.5 rounded-full border border-red-600/20">
+                        <Clock size={14} className="text-red-600 animate-pulse" />
+                        <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider">Ends in: 02:45:12</span>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1311,7 +1270,7 @@ export default function App() {
             {isSearching && (
               <div className="px-4 mt-6">
                 <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Search size={20} className="text-emerald-600" />
+                  <Search size={20} className="text-red-600" />
                   {t('searchResult')}
                 </h2>
                 {searchQuery && filteredProducts.length === 0 && (
@@ -1328,7 +1287,7 @@ export default function App() {
                       {selectedCategory && !isSearching && (
                         <button 
                           onClick={() => setSelectedCategory('')}
-                          className="p-2 bg-[#1a1a1a] rounded-full text-emerald-600 hover:bg-[#262626] transition-colors lg:hidden"
+                          className="p-2 bg-[#1a1a1a] rounded-full text-red-600 hover:bg-[#262626] transition-colors lg:hidden"
                         >
                           {language === 'en' || language === 'tr' ? <ChevronLeft size={24} /> : <ChevronRight size={24} />}
                         </button>
@@ -1374,8 +1333,6 @@ export default function App() {
             )}
             </div>
           </div>
-        ) : currentView === 'location_promo' ? (
-          <LocationPromoPage setCurrentView={setCurrentView} />
         ) : currentView === 'verification' ? (
           <div className="px-4 py-20 flex flex-col items-center text-center">
             <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mb-8">
@@ -1391,27 +1348,27 @@ export default function App() {
             </p>
             <button 
               onClick={() => setCurrentView('login')}
-              className="w-full max-w-sm bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-emerald-600/20"
+              className="w-full max-w-sm bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-red-600/20"
             >
               {language === 'en' ? 'Login' : 'چوونەژوورەوە'}
             </button>
           </div>
         ) : currentView === 'login' ? (
           <div className="px-4 py-20 flex flex-col items-center">
-            <div className="w-20 h-20 bg-emerald-600 rounded-full flex items-center justify-center mb-8">
+            <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mb-8">
               <User size={40} color="white" />
             </div>
             <h2 className="text-2xl font-bold mb-8">{language === 'en' ? 'User Login' : language === 'tr' ? 'Kullanıcı Girişi' : 'چوونەژوورەوەی بەکارهێنەر'}</h2>
             <form onSubmit={handleLogin} className="w-full max-w-sm space-y-4 bg-[#1a1a1a] p-8 rounded-3xl shadow-2xl border border-white/5">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">{language === 'en' ? 'Email or Username' : language === 'tr' ? 'E-posta veya Kullanıcı Adı' : 'ئیمەیڵ یان ناوی بەکارهێنەر'}</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">{language === 'en' ? 'Email' : language === 'tr' ? 'E-posta' : 'ئیمەیڵ'}</label>
                 <input 
-                  type="text"
+                  type="email"
                   required
                   value={loginData.username}
                   onChange={(e) => setLoginData({...loginData, username: e.target.value})}
-                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
-                  placeholder={language === 'en' ? "email@example.com or admin" : "email@example.com یان admin"}
+                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
+                  placeholder="email@example.com"
                 />
               </div>
               <div>
@@ -1421,13 +1378,13 @@ export default function App() {
                   required
                   value={loginData.password}
                   onChange={(e) => setLoginData({...loginData, password: e.target.value})}
-                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                   placeholder="..."
                 />
               </div>
               <button 
                 type="submit"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-colors mt-4 shadow-lg shadow-emerald-600/20"
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors mt-4 shadow-lg shadow-red-600/20"
               >
                 {language === 'en' ? 'Login' : language === 'tr' ? 'Giriş Yap' : 'چوونەژوورەوە'}
               </button>
@@ -1447,7 +1404,7 @@ export default function App() {
                 {language === 'en' ? 'Continue with Google' : 'بەردەوامبە لەگەڵ گووگڵ'}
               </button>
               <div className="text-center pt-4 space-y-4">
-                <p className="text-sm text-gray-500">{t('noAccount')} <button type="button" onClick={() => setCurrentView('register')} className="text-emerald-600 font-bold hover:underline">{t('register')}</button></p>
+                <p className="text-sm text-gray-500">{t('noAccount')} <button type="button" onClick={() => setCurrentView('register')} className="text-red-600 font-bold hover:underline">{t('register')}</button></p>
               </div>
             </form>
           </div>
@@ -1465,7 +1422,7 @@ export default function App() {
                   required
                   value={loginData.username}
                   onChange={(e) => setLoginData({...loginData, username: e.target.value})}
-                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                 />
               </div>
               <div>
@@ -1475,7 +1432,7 @@ export default function App() {
                   required
                   value={loginData.password}
                   onChange={(e) => setLoginData({...loginData, password: e.target.value})}
-                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                  className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                 />
               </div>
               <button 
@@ -1495,7 +1452,7 @@ export default function App() {
           </div>
         ) : currentView === 'register' ? (
           <div className="px-4 py-10 flex flex-col items-center">
-            <div className="w-20 h-20 bg-emerald-600 rounded-full flex items-center justify-center mb-6">
+            <div className="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center mb-6">
               <User size={40} color="white" />
             </div>
             <h2 className="text-2xl font-bold mb-6">{t('register')}</h2>
@@ -1503,7 +1460,7 @@ export default function App() {
             <div className="w-full max-w-sm bg-[#1a1a1a] p-8 rounded-3xl shadow-2xl border border-white/5 relative overflow-hidden">
               {isLoading && (
                 <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                  <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
                 </div>
               )}
 
@@ -1515,7 +1472,7 @@ export default function App() {
                     required
                     value={registerData.full_name}
                     onChange={(e) => setRegisterData({...registerData, full_name: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                     placeholder="..."
                   />
                 </div>
@@ -1526,7 +1483,7 @@ export default function App() {
                     required
                     value={registerData.username}
                     onChange={(e) => setRegisterData({...registerData, username: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                     placeholder="email@example.com"
                   />
                 </div>
@@ -1537,7 +1494,7 @@ export default function App() {
                     required
                     value={registerData.password}
                     onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                     placeholder="..."
                   />
                 </div>
@@ -1547,7 +1504,7 @@ export default function App() {
                     type="text"
                     value={registerData.phone}
                     onChange={(e) => setRegisterData({...registerData, phone: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                     placeholder="0750..."
                   />
                 </div>
@@ -1557,14 +1514,14 @@ export default function App() {
                     type="text"
                     value={registerData.address}
                     onChange={(e) => setRegisterData({...registerData, address: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                     placeholder="..."
                   />
                 </div>
                 <button 
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl transition-colors mt-4 shadow-lg shadow-emerald-600/20"
+                  className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl transition-colors mt-4 shadow-lg shadow-red-600/20"
                 >
                   {t('register')}
                 </button>
@@ -1584,109 +1541,56 @@ export default function App() {
                   {language === 'en' ? 'Continue with Google' : 'بەردەوامبە لەگەڵ گووگڵ'}
                 </button>
                 <div className="text-center pt-4">
-                  <p className="text-sm text-gray-500">{t('haveAccount')} <button type="button" onClick={() => setCurrentView('login')} className="text-emerald-600 font-bold hover:underline">{language === 'en' ? 'Login' : 'چوونەژوورەوە'}</button></p>
+                  <p className="text-sm text-gray-500">{t('haveAccount')} <button type="button" onClick={() => setCurrentView('login')} className="text-red-600 font-bold hover:underline">{language === 'en' ? 'Login' : 'چوونەژوورەوە'}</button></p>
                 </div>
               </form>
             </div>
           </div>
         ) : currentView === 'profile' ? (
           <div className="px-4 py-10 flex flex-col items-center">
-            <div className="w-24 h-24 bg-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-emerald-600/20">
+            <div className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-red-600/20">
               <User size={48} color="white" />
             </div>
             <h2 className="text-2xl font-bold mb-2">{currentUser?.full_name || currentUser?.username}</h2>
             <p className="text-gray-500 mb-8">@{currentUser?.username}</p>
             
             <div className="w-full max-w-sm space-y-4">
-              {isEditingProfile ? (
-                <form onSubmit={handleUpdateProfile} className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/5 space-y-4">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">{t('fullName')}</label>
-                    <input 
-                      type="text"
-                      value={editProfileData.full_name}
-                      onChange={(e) => setEditProfileData({...editProfileData, full_name: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
-                    />
+              <div className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/5 space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
+                    <User size={20} />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">{t('phone')}</label>
-                    <input 
-                      type="text"
-                      value={editProfileData.phone}
-                      onChange={(e) => setEditProfileData({...editProfileData, phone: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
-                    />
+                    <p className="text-xs text-gray-500">{t('fullName')}</p>
+                    <p className="font-medium">{currentUser?.full_name || '-'}</p>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">{t('address')}</label>
-                    <textarea 
-                      value={editProfileData.address}
-                      onChange={(e) => setEditProfileData({...editProfileData, address: e.target.value})}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-600 outline-none h-24 resize-none"
-                    />
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <button 
-                      type="button"
-                      onClick={() => setIsEditingProfile(false)}
-                      className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 rounded-xl transition-colors"
-                    >
-                      {language === 'en' ? 'Cancel' : 'پاشگەزبوونەوە'}
-                    </button>
-                    <button 
-                      type="submit"
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors shadow-lg shadow-emerald-600/20"
-                    >
-                      {language === 'en' ? 'Save' : 'پاشەکەوتکردن'}
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <div className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/5 space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
-                      <User size={20} />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">{t('fullName')}</p>
-                      <p className="font-medium">{currentUser?.full_name || '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
-                      <MapPin size={20} />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">{t('address')}</p>
-                      <p className="font-medium">{currentUser?.address || '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
-                      <Bell size={20} />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">{t('phone')}</p>
-                      <p className="font-medium">{currentUser?.phone || '-'}</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={startEditingProfile}
-                    className="w-full mt-4 bg-white/5 hover:bg-white/10 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 border border-white/10"
-                  >
-                    <Edit3 size={18} className="text-emerald-600" />
-                    {language === 'en' ? 'Edit Profile' : 'دەستکاری پرۆفایل'}
-                  </button>
                 </div>
-              )}
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
+                    <MapPin size={20} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">{t('address')}</p>
+                    <p className="font-medium">{currentUser?.address || '-'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-gray-400">
+                    <Bell size={20} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">{t('phone')}</p>
+                    <p className="font-medium">{currentUser?.phone || '-'}</p>
+                  </div>
+                </div>
+              </div>
 
               {currentUser?.is_admin && (
                 <button 
                   onClick={() => setCurrentView('admin')}
                   className="w-full bg-[#1a1a1a] hover:bg-white/5 text-white font-bold py-4 rounded-2xl transition-colors border border-white/5 flex items-center justify-center gap-3"
                 >
-                  <Grid size={20} className="text-emerald-600" />
+                  <Grid size={20} className="text-red-600" />
                   {t('admin')}
                 </button>
               )}
@@ -1700,7 +1604,7 @@ export default function App() {
                   setCurrentView('login');
                   showToastMsg('بە سەرکەوتوویی چوویتە دەرەوە');
                 }}
-                className="w-full bg-white/5 hover:bg-emerald-600/10 text-emerald-600 font-bold py-4 rounded-2xl transition-colors border border-emerald-600/20"
+                className="w-full bg-white/5 hover:bg-red-600/10 text-red-600 font-bold py-4 rounded-2xl transition-colors border border-red-600/20"
               >
                 {t('logout')}
               </button>
@@ -1712,7 +1616,7 @@ export default function App() {
               {/* Admin Sidebar for Desktop */}
               <div className="hidden lg:block w-64 flex-shrink-0 space-y-2">
                 <div className="bg-[#1a1a1a] p-6 rounded-3xl mb-6">
-                  <h2 className="text-xl font-bold text-emerald-600 mb-1">{t('welcomeAdmin')}</h2>
+                  <h2 className="text-xl font-bold text-red-600 mb-1">{t('welcomeAdmin')}</h2>
                   <p className="text-sm text-gray-500">{currentUser?.full_name}</p>
                 </div>
                 
@@ -1733,7 +1637,7 @@ export default function App() {
                       if (tab.id === 'manage_products') fetchProducts(true);
                       if (tab.id === 'orders') fetchOrders();
                     }}
-                    className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all ${adminTab === tab.id ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-[#1a1a1a] text-gray-400 hover:bg-[#262626]'}`}
+                    className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all ${adminTab === tab.id ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-[#1a1a1a] text-gray-400 hover:bg-[#262626]'}`}
                   >
                     {tab.icon}
                     <span className="font-bold text-sm">{tab.label}</span>
@@ -1745,7 +1649,7 @@ export default function App() {
               <div className="lg:hidden">
                 <div className="bg-[#1a1a1a] p-6 rounded-3xl mb-6 flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold text-emerald-600">{t('welcomeAdmin')}</h2>
+                    <h2 className="text-2xl font-bold text-red-600">{t('welcomeAdmin')}</h2>
                     <p className="text-gray-500">{currentUser?.full_name}</p>
                   </div>
                   <button onClick={() => setCurrentView('home')} className="p-2 bg-[#262626] rounded-full">
@@ -1771,7 +1675,7 @@ export default function App() {
                         if (tab.id === 'manage_products') fetchProducts(true);
                         if (tab.id === 'orders') fetchOrders();
                       }}
-                      className={`flex-shrink-0 px-6 py-3 rounded-2xl font-bold transition-all ${adminTab === tab.id ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-[#1a1a1a] text-gray-400'}`}
+                      className={`flex-shrink-0 px-6 py-3 rounded-2xl font-bold transition-all ${adminTab === tab.id ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-[#1a1a1a] text-gray-400'}`}
                     >
                       {tab.label}
                     </button>
@@ -1788,7 +1692,7 @@ export default function App() {
                   <select 
                     value={newProduct.category_id}
                     onChange={(e) => setNewProduct({...newProduct, category_id: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                   >
                     {categories.map(cat => (
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -1803,7 +1707,7 @@ export default function App() {
                     required
                     value={newProduct.name}
                     onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                     placeholder="ناوی کاڵا بنووسە..."
                   />
                 </div>
@@ -1828,7 +1732,7 @@ export default function App() {
                           ] : newProduct.weights
                         });
                       }}
-                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                     />
                   </div>
                   <div>
@@ -1837,7 +1741,7 @@ export default function App() {
                       type="number"
                       value={newProduct.old_price}
                       onChange={(e) => setNewProduct({...newProduct, old_price: e.target.value})}
-                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                       placeholder="نموونە: 12000"
                     />
                   </div>
@@ -1847,7 +1751,7 @@ export default function App() {
                       type="number"
                       value={newProduct.discount}
                       onChange={(e) => setNewProduct({...newProduct, discount: e.target.value})}
-                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                      className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                       placeholder="نموونە: 20"
                     />
                   </div>
@@ -1859,7 +1763,7 @@ export default function App() {
                     id="is_limited_new"
                     checked={newProduct.is_limited === 1}
                     onChange={(e) => setNewProduct({...newProduct, is_limited: e.target.checked ? 1 : 0})}
-                    className="w-5 h-5 accent-emerald-600"
+                    className="w-5 h-5 accent-red-600"
                   />
                   <label htmlFor="is_limited_new" className="text-sm font-bold text-white cursor-pointer">
                     {t('limitedTimeOffers')} (Limited Time)
@@ -1878,10 +1782,10 @@ export default function App() {
                     />
                     <label 
                       htmlFor="file-upload-product"
-                      className="w-full bg-[#262626] border-2 border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-emerald-600 transition-colors"
+                      className="w-full bg-[#262626] border-2 border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-red-600 transition-colors"
                     >
                       {uploading ? (
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
                       ) : newProduct.image ? (
                         <img src={newProduct.image} className="h-32 w-32 object-cover rounded-xl" />
                       ) : (
@@ -1927,7 +1831,7 @@ export default function App() {
                             const weights = newProduct.weights.filter((_, i) => i !== idx);
                             setNewProduct({...newProduct, weights});
                           }}
-                          className="p-3 text-emerald-600"
+                          className="p-3 text-red-600"
                         >
                           <Trash2 size={20} />
                         </button>
@@ -1937,7 +1841,7 @@ export default function App() {
                   <button 
                     type="button"
                     onClick={() => setNewProduct({...newProduct, weights: [...newProduct.weights, { w: 0, p: 0 }]})}
-                    className="text-sm text-emerald-600 font-bold flex items-center gap-1"
+                    className="text-sm text-red-600 font-bold flex items-center gap-1"
                   >
                     <Plus size={16} /> زیادکردنی کێشی تر
                   </button>
@@ -1947,7 +1851,7 @@ export default function App() {
                   <button 
                     type="submit"
                     disabled={uploading}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl transition-colors"
+                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl transition-colors"
                   >
                     پاشەکەوتکردن
                   </button>
@@ -1981,7 +1885,7 @@ export default function App() {
                       <button 
                         type="button"
                         onClick={() => handleDeleteProduct(product.id)}
-                        className="p-2 text-emerald-600 hover:bg-emerald-600/10 rounded-full transition-colors"
+                        className="p-2 text-red-600 hover:bg-red-600/10 rounded-full transition-colors"
                         title="Delete"
                       >
                         <Trash2 size={20} />
@@ -2012,7 +1916,7 @@ export default function App() {
                       <button 
                         type="button"
                         onClick={() => handleDeleteCategory(cat.id)}
-                        className="p-2 text-emerald-600 hover:bg-emerald-600/10 rounded-full transition-colors"
+                        className="p-2 text-red-600 hover:bg-red-600/10 rounded-full transition-colors"
                         title="Delete"
                       >
                         <Trash2 size={20} />
@@ -2052,7 +1956,7 @@ export default function App() {
                     type="number"
                     value={deliveryFeeVal}
                     onChange={(e) => setDeliveryFeeVal(parseInt(e.target.value))}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 outline-none focus:ring-2 focus:ring-emerald-600"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 outline-none focus:ring-2 focus:ring-red-600"
                   />
                 </div>
                 <div>
@@ -2061,12 +1965,12 @@ export default function App() {
                     type="number"
                     value={freeThreshold}
                     onChange={(e) => setFreeThreshold(parseInt(e.target.value))}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 outline-none focus:ring-2 focus:ring-emerald-600"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 outline-none focus:ring-2 focus:ring-red-600"
                   />
                 </div>
                 <button 
                   type="submit"
-                  className="w-full bg-emerald-600 py-4 rounded-xl font-bold text-lg shadow-lg shadow-emerald-600/20 active:scale-95 transition-transform"
+                  className="w-full bg-red-600 py-4 rounded-xl font-bold text-lg shadow-lg shadow-red-600/20 active:scale-95 transition-transform"
                 >
                   پاشەکەوتکردن
                 </button>
@@ -2083,7 +1987,7 @@ export default function App() {
                     <div key={order.id} className="bg-[#1a1a1a] p-6 rounded-3xl border border-white/5 space-y-4">
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="text-emerald-600 font-bold">#{order.id}</p>
+                          <p className="text-red-600 font-bold">#{order.id}</p>
                           <p className="text-xs text-gray-500">{new Date(order.date).toLocaleString()}</p>
                         </div>
                         <select 
@@ -2091,7 +1995,7 @@ export default function App() {
                           onChange={(e) => updateOrderStatus(order.id, e.target.value)}
                           className={`text-xs font-bold px-3 py-1 rounded-full outline-none ${
                             order.status === 'completed' ? 'bg-green-500/20 text-green-500' :
-                            order.status === 'cancelled' ? 'bg-emerald-500/20 text-emerald-500' :
+                            order.status === 'cancelled' ? 'bg-red-500/20 text-red-500' :
                             'bg-yellow-500/20 text-yellow-500'
                           }`}
                         >
@@ -2127,7 +2031,7 @@ export default function App() {
 
                       <div className="border-t border-white/5 pt-4 flex justify-between font-bold">
                         <span>{t('total')}</span>
-                        <span className="text-emerald-600">{(order.total_price + order.delivery_fee).toLocaleString()} {t('dinar')}</span>
+                        <span className="text-red-600">{(order.total_price + order.delivery_fee).toLocaleString()} {t('dinar')}</span>
                       </div>
 
                       {order.location_url && (
@@ -2155,7 +2059,7 @@ export default function App() {
                     required
                     value={newCategory.name}
                     onChange={(e) => setNewCategory({...newCategory, name: e.target.value})}
-                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-emerald-600 outline-none"
+                    className="w-full bg-[#262626] border border-white/10 rounded-xl p-3 focus:ring-2 focus:ring-red-600 outline-none"
                     placeholder="ناوی هاوپۆل بنووسە..."
                   />
                 </div>
@@ -2171,10 +2075,10 @@ export default function App() {
                     />
                     <label 
                       htmlFor="file-upload-cat"
-                      className="w-full bg-[#262626] border-2 border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-emerald-600 transition-colors"
+                      className="w-full bg-[#262626] border-2 border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-red-600 transition-colors"
                     >
                       {uploading ? (
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
                       ) : newCategory.icon ? (
                         <img src={newCategory.icon} className="h-20 w-20 object-cover rounded-xl" />
                       ) : (
@@ -2189,7 +2093,7 @@ export default function App() {
                 <button 
                   type="submit"
                   disabled={uploading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl transition-colors"
+                  className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl transition-colors"
                 >
                   زیادکردنی هاوپۆل
                 </button>
@@ -2220,7 +2124,7 @@ export default function App() {
                     />
                     <label 
                       htmlFor="logo-upload"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-xl cursor-pointer transition-colors"
+                      className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-xl cursor-pointer transition-colors"
                     >
                       {uploading ? 'باردەکرێت...' : 'گۆڕینی لۆگۆ'}
                     </label>
@@ -2235,10 +2139,10 @@ export default function App() {
           </div>
         </div>
         ) : currentView === 'video_ai' ? (
-          <VideoAI t={t} language={language} />
+          <VideoAI t={t} />
         ) : null}
         
-        {currentView === 'home' && <Footer appLogo={appLogo} t={t} setCurrentView={setCurrentView} />}
+        {currentView === 'home' && <Footer appLogo={appLogo} t={t} />}
       </main>
 
       {/* Edit Product Modal */}
@@ -2325,7 +2229,7 @@ export default function App() {
                     id="is_limited_edit"
                     checked={editingProduct.is_limited === 1}
                     onChange={(e) => setEditingProduct({...editingProduct, is_limited: e.target.checked ? 1 : 0})}
-                    className="w-5 h-5 accent-emerald-600"
+                    className="w-5 h-5 accent-red-600"
                   />
                   <label htmlFor="is_limited_edit" className="text-sm font-bold text-white cursor-pointer">
                     {t('limitedTimeOffers')} (Limited Time)
@@ -2382,7 +2286,7 @@ export default function App() {
                             const weights = editingProduct.weights.filter((_, i) => i !== idx);
                             setEditingProduct({...editingProduct, weights});
                           }}
-                          className="p-3 text-emerald-600"
+                          className="p-3 text-red-600"
                         >
                           <Trash2 size={20} />
                         </button>
@@ -2392,7 +2296,7 @@ export default function App() {
                   <button 
                     type="button"
                     onClick={() => setEditingProduct({...editingProduct, weights: [...editingProduct.weights, { w: 0, p: 0 }]})}
-                    className="text-sm text-emerald-600 font-bold flex items-center gap-1"
+                    className="text-sm text-red-600 font-bold flex items-center gap-1"
                   >
                     <Plus size={16} /> زیادکردنی کێشی تر
                   </button>
@@ -2401,7 +2305,7 @@ export default function App() {
                 <div className="flex gap-3 pt-4">
                   <button 
                     onClick={handleUpdateProduct}
-                    className="flex-1 bg-emerald-600 py-4 rounded-2xl font-bold"
+                    className="flex-1 bg-red-600 py-4 rounded-2xl font-bold"
                   >
                     پاشەکەوتکردن
                   </button>
@@ -2413,7 +2317,7 @@ export default function App() {
                         setEditingProduct(null);
                       }
                     }}
-                    className="bg-emerald-600/20 text-emerald-600 p-4 rounded-2xl font-bold border border-emerald-600/20"
+                    className="bg-red-600/20 text-red-600 p-4 rounded-2xl font-bold border border-red-600/20"
                   >
                     <Trash2 size={24} />
                   </button>
@@ -2467,7 +2371,7 @@ export default function App() {
               <div className="flex gap-2">
                 <button 
                   onClick={handleUpdatePromotion}
-                  className="flex-1 bg-emerald-600 py-3 rounded-xl font-bold"
+                  className="flex-1 bg-red-600 py-3 rounded-xl font-bold"
                 >
                   پاشەکەوت
                 </button>
@@ -2526,7 +2430,7 @@ export default function App() {
               <div className="flex flex-col gap-2">
                 <button 
                   onClick={handleUpdateCategory}
-                  className="w-full bg-emerald-600 py-3 rounded-xl font-bold"
+                  className="w-full bg-red-600 py-3 rounded-xl font-bold"
                 >
                   پاشەکەوت
                 </button>
@@ -2539,7 +2443,7 @@ export default function App() {
                         setEditingCategory(null);
                       }
                     }}
-                    className="flex-1 bg-emerald-600/20 text-emerald-600 py-3 rounded-xl font-bold border border-emerald-600/20"
+                    className="flex-1 bg-red-600/20 text-red-600 py-3 rounded-xl font-bold border border-red-600/20"
                   >
                     سڕینەوە
                   </button>
@@ -2596,13 +2500,6 @@ export default function App() {
         isFirstOrder={isLoggedIn && userOrdersCount === 0}
         language={language}
         t={t}
-        checkoutAddress={checkoutAddress}
-        setCheckoutAddress={setCheckoutAddress}
-        isLoggedIn={isLoggedIn}
-        onLocationSelect={(location) => {
-          setCheckoutAddress(location.address);
-          setCheckoutLocation({ lat: location.lat, lng: location.lng });
-        }}
       />
 
       {/* Success Modal */}
@@ -2623,24 +2520,30 @@ export default function App() {
                   </div>
                 </div>
                 <h2 className="text-2xl font-bold mb-1">
-                  {t('thankYouPurchase')}
+                  {language === 'ku' ? 'سوپاس بۆ کڕینت!' : 
+                   language === 'ar' ? 'شكراً لشرائك!' : 
+                   language === 'en' ? 'Thank you for your purchase!' : 
+                   'Satın aldığınız için teşekkürler!'}
                 </h2>
                 <p className="text-gray-400 text-sm mb-6">
-                  {t('orderRegistered')}
+                  {language === 'ku' ? 'داواکارییەکەت بە سەرکەوتوویی تۆمارکرا' : 
+                   language === 'ar' ? 'تم تسجيل طلبك بنجاح' : 
+                   language === 'en' ? 'Your order has been successfully registered' : 
+                   'Siparişiniz başarıyla kaydedildi'}
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <button 
                   onClick={() => setShowReviewForm(true)}
-                  className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-emerald-600/20"
+                  className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-red-600/20"
                 >
                   <Star size={20} />
                   {t('rate')}
                 </button>
                 <button 
                   onClick={() => setShowCheckoutSuccess(false)}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-colors"
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition-colors"
                 >
                   {t('home')}
                 </button>

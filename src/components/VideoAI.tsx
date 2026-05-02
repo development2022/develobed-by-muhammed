@@ -5,10 +5,9 @@ import { GoogleGenAI } from "@google/genai";
 
 interface VideoAIProps {
   t: (key: string) => string;
-  language: string;
 }
 
-export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
+export const VideoAI: React.FC<VideoAIProps> = ({ t }) => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -35,9 +34,9 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
   const analyzeVideo = async () => {
     if (!videoFile) return;
 
-    const apiKey = (window as any).GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      setError(t('apiKeyMissing'));
+      setError("Gemini API key is not configured. Please check your settings.");
       return;
     }
 
@@ -59,13 +58,8 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
 
       const base64Data = await base64Promise;
 
-      const targetLang = language === 'ku' ? 'Kurdish Sorani (Arabic script)' : 
-                         language === 'ar' ? 'Arabic' : 
-                         language === 'tr' ? 'Turkish' : 'English';
-
       const prompt = `
-        Analyze this video content and provide the following in JSON format. 
-        All text values in the JSON MUST be in ${targetLang}.
+        Analyze this video content and provide the following in JSON format:
         1. "summary": A concise summary of the video.
         2. "moments": A list of key moments with "timestamp" (e.g. 0:45) and "description".
         3. "flashcards": A list of 3-5 flashcards with "question" and "answer".
@@ -117,7 +111,7 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
         <motion.div
           initial={{ scale: 0.5, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="w-20 h-20 bg-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-emerald-600/20"
+          className="w-20 h-20 bg-red-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-red-600/20"
         >
           <Video className="text-white" size={40} />
         </motion.div>
@@ -134,7 +128,7 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
             onClick={() => !videoFile && fileInputRef.current?.click()}
             className={`relative aspect-video rounded-[32px] border-2 border-dashed transition-all flex flex-col items-center justify-center overflow-hidden ${
               videoFile 
-                ? 'border-emerald-600/50 bg-black' 
+                ? 'border-red-600/50 bg-black' 
                 : 'border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer'
             }`}
           >
@@ -147,15 +141,15 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
                 />
                 <button 
                   onClick={(e) => { e.stopPropagation(); removeVideo(); }}
-                  className="absolute top-4 right-4 p-2 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-emerald-600 transition-colors"
+                  className="absolute top-4 right-4 p-2 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-red-600 transition-colors"
                 >
                   <X size={20} />
                 </button>
               </>
             ) : (
               <div className="text-center p-8">
-                <div className="w-16 h-16 bg-emerald-600/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Upload className="text-emerald-600" size={32} />
+                <div className="w-16 h-16 bg-red-600/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Upload className="text-red-600" size={32} />
                 </div>
                 <p className="font-bold mb-2">{t('uploadVideo')}</p>
                 <p className="text-xs text-gray-500">{t('maxSize20MB')}</p>
@@ -171,7 +165,7 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
           </div>
 
           {error && (
-            <div className="p-4 bg-emerald-600/10 border border-emerald-600/20 rounded-2xl text-emerald-600 text-sm flex items-center gap-3">
+            <div className="p-4 bg-red-600/10 border border-red-600/20 rounded-2xl text-red-600 text-sm flex items-center gap-3">
               <X size={18} />
               {error}
             </div>
@@ -183,7 +177,7 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
             className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all ${
               !videoFile || isAnalyzing
                 ? 'bg-white/5 text-gray-500 cursor-not-allowed'
-                : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xl shadow-emerald-600/20'
+                : 'bg-red-600 text-white hover:bg-red-700 shadow-xl shadow-red-600/20'
             }`}
           >
             {isAnalyzing ? (
@@ -221,7 +215,7 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
                     onClick={() => setActiveTab(tab.id as any)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
                       activeTab === tab.id 
-                        ? 'bg-emerald-600 text-white' 
+                        ? 'bg-red-600 text-white' 
                         : 'bg-white/5 text-gray-400 hover:bg-white/10'
                     }`}
                   >
@@ -242,7 +236,7 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
                       className="space-y-4"
                     >
                       <h3 className="font-bold text-lg flex items-center gap-2">
-                        <FileText className="text-emerald-600" size={20} />
+                        <FileText className="text-red-600" size={20} />
                         {t('videoSummary')}
                       </h3>
                       <p className="text-gray-400 leading-relaxed">
@@ -260,13 +254,13 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
                       className="space-y-4"
                     >
                       <h3 className="font-bold text-lg flex items-center gap-2">
-                        <Clock className="text-emerald-600" size={20} />
+                        <Clock className="text-red-600" size={20} />
                         {t('keyMoments')}
                       </h3>
                       <div className="space-y-3">
                         {result.moments?.map((moment: any, i: number) => (
-                          <div key={i} className="flex gap-4 p-4 bg-white/5 rounded-2xl border border-white/5 group hover:border-emerald-600/30 transition-all">
-                            <div className="text-emerald-600 font-mono font-bold text-sm bg-emerald-600/10 h-fit px-3 py-1 rounded-lg">
+                          <div key={i} className="flex gap-4 p-4 bg-white/5 rounded-2xl border border-white/5 group hover:border-red-600/30 transition-all">
+                            <div className="text-red-600 font-mono font-bold text-sm bg-red-600/10 h-fit px-3 py-1 rounded-lg">
                               {moment.timestamp}
                             </div>
                             <p className="text-sm text-gray-300">{moment.description}</p>
@@ -285,14 +279,14 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
                       className="space-y-4"
                     >
                       <h3 className="font-bold text-lg flex items-center gap-2">
-                        <Layout className="text-emerald-600" size={20} />
+                        <Layout className="text-red-600" size={20} />
                         {t('flashcards')}
                       </h3>
                       <div className="grid grid-cols-1 gap-4">
                         {result.flashcards?.map((card: any, i: number) => (
                           <div key={i} className="p-5 bg-white/5 rounded-2xl border border-white/5 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-1 h-full bg-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <p className="text-xs text-emerald-600 font-bold uppercase tracking-widest mb-2">{t('question')} {i + 1}</p>
+                            <div className="absolute top-0 right-0 w-1 h-full bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <p className="text-xs text-red-600 font-bold uppercase tracking-widest mb-2">{t('question')} {i + 1}</p>
                             <p className="font-bold text-white mb-3">{card.question}</p>
                             <div className="pt-3 border-t border-white/5">
                               <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">{t('answer')}</p>
@@ -313,13 +307,13 @@ export const VideoAI: React.FC<VideoAIProps> = ({ t, language }) => {
                       className="space-y-4"
                     >
                       <h3 className="font-bold text-lg flex items-center gap-2">
-                        <Sparkles className="text-emerald-600" size={20} />
+                        <Sparkles className="text-red-600" size={20} />
                         {t('marketingHighlights')}
                       </h3>
                       <div className="space-y-4">
                         {result.marketing?.map((hook: string, i: number) => (
-                          <div key={i} className="flex items-start gap-4 p-4 bg-emerald-600/5 rounded-2xl border border-emerald-600/10">
-                            <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center text-white font-bold shrink-0">
+                          <div key={i} className="flex items-start gap-4 p-4 bg-red-600/5 rounded-2xl border border-red-600/10">
+                            <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-white font-bold shrink-0">
                               {i + 1}
                             </div>
                             <p className="text-white font-medium italic">"{hook}"</p>
