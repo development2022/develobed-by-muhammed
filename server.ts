@@ -90,10 +90,15 @@ const upload = multer({ storage });
 // Helper to upload to Supabase Storage with local fallback
 async function handleFileUpload(file: Express.Multer.File, bucket: string = 'uploads') {
   try {
-    // Try Supabase first
-    if (supabaseUrl && supabaseKey && !supabaseUrl.includes('YOUR_')) {
+    // Try Supabase first if healthy and configured
+    if (isSupabaseHealthy && supabaseUrl && supabaseKey && !supabaseUrl.includes('YOUR_')) {
       const fileExt = path.extname(file.originalname);
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}${fileExt}`;
+      
+      // Use controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
       const { data, error } = await supabase.storage
         .from(bucket)
         .upload(fileName, file.buffer, {
@@ -101,14 +106,18 @@ async function handleFileUpload(file: Express.Multer.File, bucket: string = 'upl
           upsert: false
         });
 
+      clearTimeout(timeoutId);
+
       if (!error) {
         const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(fileName);
         return publicUrl;
       }
       console.warn("Supabase upload failed, falling back to local:", error.message);
+    } else if (supabaseUrl && supabaseKey && !supabaseUrl.includes('YOUR_')) {
+      console.log("Supabase is not healthy or skipping storage upload.");
     }
-  } catch (err) {
-    console.warn("Supabase upload exception, falling back to local:", err);
+  } catch (err: any) {
+    console.warn("Supabase upload exception, falling back to local:", err.message || err);
   }
 
   // Local Fallback

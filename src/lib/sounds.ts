@@ -3,8 +3,10 @@
  */
 
 // Options for sounds:
-// 1. Put in public/alerts.wav -> access via '/alerts.wav' (Current default)
+// 1. Put in public/alerts.wav -> access via '/alerts.wav'
 // 2. Put in src/lib/raw/alerts.wav -> access via import (Vite handles it)
+// UNCOMMENT below if you put the file in src/lib/raw/
+// import alertsWav from './raw/alerts.wav';
 
 const ALERT_SOUND_PATH = '/alerts.wav';
 const FALLBACK_URL = 'https://cdn.pixabay.com/audio/2022/03/15/audio_78330a613f.mp3';
@@ -16,8 +18,9 @@ class SoundService {
 
   private constructor() {
     if (typeof window !== 'undefined') {
-      // We use a relative path from the domain root. 
-      // If you upload 'alerts.wav' to the 'public' folder, it will work.
+      // If using import (Method 2), use the imported variable here:
+      // this.audio = new Audio(alertsWav);
+      
       this.audio = new Audio(ALERT_SOUND_PATH);
       this.fallbackAudio = new Audio(FALLBACK_URL);
     }
