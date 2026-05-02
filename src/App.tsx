@@ -655,17 +655,23 @@ export default function App() {
         method: 'POST',
         body: formData
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Upload failed');
+      }
+
       const data = await response.json();
       if (target === 'product') {
-        setNewProduct({ ...newProduct, image: data.url });
+        setNewProduct(prev => ({ ...prev, image: data.url }));
       } else if (target === 'edit_product' && editingProduct) {
-        setEditingProduct({ ...editingProduct, image: data.url });
+        setEditingProduct(prev => prev ? ({ ...prev, image: data.url }) : null);
       } else if (target === 'category') {
-        setNewCategory({ ...newCategory, icon: data.url });
+        setNewCategory(prev => ({ ...prev, icon: data.url }));
       } else if (target === 'edit_category' && editingCategory) {
-        setEditingCategory({ ...editingCategory, icon: data.url });
+        setEditingCategory(prev => prev ? ({ ...prev, icon: data.url }) : null);
       } else if (target === 'edit_promo' && editingPromotion) {
-        setEditingPromotion({ ...editingPromotion, image: data.url });
+        setEditingPromotion(prev => prev ? ({ ...prev, image: data.url }) : null);
       } else if (target === 'logo') {
         await fetch('/api/settings', {
           method: 'POST',
@@ -675,10 +681,13 @@ export default function App() {
         setAppLogo(data.url);
       }
       showToastMsg(t('uploadSuccess'));
-    } catch (error) {
-      showToastMsg(t('uploadError'));
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      showToastMsg(`${t('uploadError')}: ${error.message}`);
     } finally {
       setUploading(false);
+      // Reset input
+      e.target.value = '';
     }
   };
 
@@ -2064,7 +2073,7 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">بارکردنی ئایکۆن</label>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">{t('categoryImage')}</label>
                   <div className="flex flex-col gap-3">
                     <input 
                       type="file"
@@ -2080,11 +2089,11 @@ export default function App() {
                       {uploading ? (
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
                       ) : newCategory.icon ? (
-                        <img src={newCategory.icon} className="h-20 w-20 object-cover rounded-xl" />
+                        <img src={newCategory.icon} className="h-24 w-24 object-cover rounded-xl" />
                       ) : (
                         <>
                           <Plus size={32} className="text-gray-500 mb-2" />
-                          <span className="text-sm text-gray-500">ئایکۆنێک هەڵبژێرە لە گەلەری</span>
+                          <span className="text-sm text-gray-500">{t('chooseCategoryImage')}</span>
                         </>
                       )}
                     </label>
@@ -2412,7 +2421,7 @@ export default function App() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">گۆڕینی ئایکۆن</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">{t('changeImage')}</label>
                 <input 
                   type="file"
                   accept="image/*"
@@ -2424,7 +2433,7 @@ export default function App() {
                   htmlFor="edit-file-upload-cat"
                   className="w-full bg-[#262626] border-2 border-dashed border-white/10 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer"
                 >
-                  <img src={editingCategory.icon} className="h-20 w-20 object-cover rounded-xl" />
+                  <img src={editingCategory.icon} className="h-24 w-24 object-cover rounded-xl" />
                 </label>
               </div>
               <div className="flex flex-col gap-2">

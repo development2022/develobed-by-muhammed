@@ -2,21 +2,24 @@
  * Audio assets and playback logic
  */
 
-// 1. UPLOAD your alert.mp3 to src/lib/
-// 2. UNCOMMENT the line below:
-// import alertSound from './alert.mp3';
+// Options for sounds:
+// 1. Put in public/alerts.wav -> access via '/alerts.wav' (Current default)
+// 2. Put in src/lib/raw/alerts.wav -> access via import (Vite handles it)
 
-// Fallback sound for testing (Pixabay royalty-free)
+const ALERT_SOUND_PATH = '/alerts.wav';
 const FALLBACK_URL = 'https://cdn.pixabay.com/audio/2022/03/15/audio_78330a613f.mp3';
 
 class SoundService {
   private static instance: SoundService;
   private audio: HTMLAudioElement | null = null;
+  private fallbackAudio: HTMLAudioElement | null = null;
 
   private constructor() {
     if (typeof window !== 'undefined') {
-      // 3. CHANGE this to use alertSound after uncommenting the import above:
-      this.audio = new Audio(FALLBACK_URL);
+      // We use a relative path from the domain root. 
+      // If you upload 'alerts.wav' to the 'public' folder, it will work.
+      this.audio = new Audio(ALERT_SOUND_PATH);
+      this.fallbackAudio = new Audio(FALLBACK_URL);
     }
   }
 
@@ -29,20 +32,26 @@ class SoundService {
 
   /**
    * Plays the alert sound.
-   * If you upload src/lib/alert.mp3, you can modify this to use the local file.
    */
   async playAlert() {
-    if (!this.audio) return;
+    if (typeof window === 'undefined') return;
     
     try {
-      this.audio.currentTime = 0;
-      await this.audio.play();
+      if (this.audio) {
+        this.audio.currentTime = 0;
+        await this.audio.play().catch(async (err) => {
+          console.warn("Primary sound (/alerts.wav) missing or failed, playing fallback:", err);
+          if (this.fallbackAudio) {
+            this.fallbackAudio.currentTime = 0;
+            await this.fallbackAudio.play();
+          }
+        });
+      }
     } catch (error) {
-      console.warn("Audio playback blocked or failed:", error);
+      console.warn("Audio playback blocked by browser/failed:", error);
     }
   }
 
-  // Helper for order success
   playOrderSuccess() {
     this.playAlert();
   }
