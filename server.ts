@@ -7,6 +7,8 @@ import multer from "multer";
 import fs from "fs";
 import twilio from "twilio";
 import dotenv from "dotenv";
+import helmet from "helmet";
+import compression from "compression";
 import db from "./db.js";
 
 dotenv.config();
@@ -35,15 +37,23 @@ const checkSupabaseHealth = async () => {
     return false;
   }
   try {
-    // Check if essential tables exist
+    // Check essential tables in parallel
     const tables = ['products', 'categories', 'promotions', 'settings', 'users'];
-    for (const table of tables) {
-      const { error } = await supabase.from(table).select("count", { count: "exact", head: true });
-      if (error) {
-        console.warn(`Supabase table '${table}' missing or inaccessible:`, error.message);
-        return false;
-      }
+    const results = await Promise.all(
+      tables.map(table => 
+        supabase.from(table)
+          .select("count", { count: "exact", head: true })
+          .limit(1)
+      )
+    );
+    
+    for (let i = 0; i < results.length; i++) {
+        if (results[i].error) {
+            console.warn(`Supabase table '${tables[i]}' missing or inaccessible:`, results[i].error.message);
+            return false;
+        }
     }
+    
     console.log("Supabase connection healthy. Using Supabase as primary database.");
     return true;
   } catch (err) {
@@ -82,6 +92,18 @@ const getTwilioClient = () => {
 
 export const app = express();
 const PORT = 3000;
+
+// Cloudflare Readiness: Trust proxy for correct IP handling
+app.set('trust proxy', 1);
+
+// Security Headers for Cloudflare
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP if it interferes with Vite middleware in dev
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Gzip Compression for faster delivery
+app.use(compression());
 
 // Multer config
 const storage = multer.memoryStorage();
@@ -152,7 +174,18 @@ async function startServer() {
   isSupabaseHealthy = await checkSupabaseHealth();
   
   app.use(express.json());
-  app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
+  
+  // Serve static files with caching
+  const staticConfig = {
+    maxAge: '1d',
+    setHeaders: (res: any, path: string) => {
+      if (path.includes('.well-known')) {
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+      }
+    }
+  };
+
+  app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads'), staticConfig));
 
   // API Routes
   app.post("/api/login", async (req, res) => {
@@ -715,8 +748,10 @@ async function startServer() {
   });
 
   app.get("/api/orders", async (req, res) => {
+    console.log("GET /api/orders request received");
     try {
       if (isSupabaseHealthy && supabase) {
+        console.log("Fetching orders from Supabase...");
         const { data: orders, error } = await supabase
           .from("orders")
           .select(`
@@ -730,18 +765,23 @@ async function startServer() {
           `)
           .order("id", { ascending: false });
 
-        if (!error) {
-          return res.json((orders || []).map((o: any) => ({ 
-            ...o, 
-            items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
-            username: o.users?.username,
-            full_name: o.users?.full_name,
-            phone: o.users?.phone,
-            address: o.users?.address
-          })));
+        if (error) {
+          console.error("Supabase orders fetch error:", error.message);
+          throw error;
         }
+
+        console.log(`Found ${orders?.length || 0} orders in Supabase`);
+        return res.json((orders || []).map((o: any) => ({ 
+          ...o, 
+          items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
+          username: Array.isArray(o.users) ? o.users[0]?.username : o.users?.username,
+          full_name: Array.isArray(o.users) ? o.users[0]?.full_name : o.users?.full_name,
+          phone: Array.isArray(o.users) ? o.users[0]?.phone : o.users?.phone,
+          address: Array.isArray(o.users) ? o.users[0]?.address : o.users?.address
+        })));
       }
 
+      console.log("Fetching orders from SQLite...");
       const orders = db.prepare(`
         SELECT o.*, u.username, u.full_name, u.phone, u.address 
         FROM orders o 
@@ -749,11 +789,13 @@ async function startServer() {
         ORDER BY o.id DESC
       `).all() as any[];
       
+      console.log(`Found ${orders.length} orders in SQLite`);
       res.json(orders.map((o: any) => ({
         ...o,
         items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items
       })));
     } catch (error: any) {
+      console.error("Order fetch exception:", error.message);
       res.status(500).json({ error: error.message });
     }
   });

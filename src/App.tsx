@@ -396,7 +396,13 @@ export default function App() {
 
   const fetchOrders = () => {
     fetch('/api/orders')
-      .then(res => res.json())
+      .then(async (res) => {
+        if (!res.ok) {
+          const text = await res.text().catch(() => "No error body");
+          throw new Error(`HTTP ${res.status}: ${text}`);
+        }
+        return res.json();
+      })
       .then(data => {
         if (Array.isArray(data)) {
           setOrders(data);
@@ -406,7 +412,12 @@ export default function App() {
         }
       })
       .catch(err => {
-        console.error("Fetch orders error:", err);
+        // Log more info about the error
+        console.error("Fetch orders error details:", {
+          message: err.message,
+          stack: err.stack,
+          type: err.constructor.name
+        });
         setOrders([]);
       });
   };
